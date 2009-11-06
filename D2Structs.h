@@ -549,14 +549,8 @@ struct ObjectTxt {
 
 struct ObjectData {
 	ObjectTxt *pTxt;				//0x00
-	union {
-		BYTE Type;					//0x04 (0x0F would be a Exp Shrine)
-		struct {
-			BYTE _1:7;
-			BYTE ChestLocked:1;
-		};
-	};
-	DWORD _2[8];					//0x08
+	DWORD Type;						//0x04 (0x0F would be a Exp Shrine)
+	DWORD _1[8];					//0x08
 	char szOwner[0x10];				//0x28
 };
 

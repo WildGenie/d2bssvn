@@ -1,19 +1,13 @@
 #pragma once
 
-#include <windows.h>
-
-void ChatEvent(CHAR* lpszNick, CHAR* lpszMsg);
-void LifeEvent(DWORD dwLife);
-void ManaEvent(DWORD dwMana);
-void CopyDataEvent(DWORD dwMode, CHAR* lpszMsg);
-void GameMsgEvent(CHAR* lpszMsg);
-void WhisperEvent(CHAR* lpszNick, CHAR* lpszMsg);
-void KeyDownUpEvent(WPARAM bByte, BYTE bUp);
-void PlayerAssignEvent(DWORD dwUnitId);
-void MouseClickEvent(int button, POINT pt, bool bUp);
-void MouseMoveEvent(POINT pt);
-void ScriptBroadcastEvent(uintN argc, jsval* argv);
-void GoldDropEvent(DWORD GID, WORD itemX, WORD itemY, WORD Mode);
-void ItemDropEvent(DWORD GID, CHAR* Code, WORD itemX, WORD itemY, WORD Mode);
-
-
+VOID ChatEvent(CHAR* lpszNick, CHAR* lpszMsg);
+VOID LifeEvent(DWORD dwLife, DWORD dwMana);
+VOID CopyDataEvent(DWORD dwMode, CHAR* lpszMsg);
+VOID GameMsgEvent(CHAR* lpszMsg);
+VOID WhisperEvent(CHAR* lpszNick, CHAR* lpszMsg);
+VOID KeyDownUpEvent(WPARAM bByte, BYTE bUp);
+VOID PlayerAssignEvent(DWORD dwUnitId);
+VOID MouseClickEvent(int button, POINT pt, bool bUp);
+VOID MouseMoveEvent(POINT pt);
+VOID ScriptBroadcastEvent(uintN argc, jsval* argv);
+VOID ItemDropEvent(DWORD GID,CHAR* Code,WORD itemX,WORD itemY,WORD Mode);

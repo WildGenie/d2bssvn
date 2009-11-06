@@ -1,22 +1,14 @@
 #include "JSScript.h"
+#include "CDebug.h"
 #include "Script.h"
 #include "ScriptEngine.h"
-#include "D2BS.h"
 
 #include "debugnew/debug_new.h"
 
-struct FindHelper
-{
-	DWORD tid;
-	char* name;
-	Script* script;
-};
-
-bool __fastcall FindScriptByTid(Script* script, void* argv, uint argc);
-bool __fastcall FindScriptByName(Script* script, void* argv, uint argc);
-
 JSAPI_PROP(script_getProperty)
 {
+	CDebug cDbg("script getProperty");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	Script* script = (Script*)JS_GetContextPrivate(iterp);
 
@@ -26,10 +18,7 @@ JSAPI_PROP(script_getProperty)
 	switch(JSVAL_TO_INT(id))
 	{
 		case SCRIPT_FILENAME:
-			{
-				const char* relName = (script->GetFilename() + strlen(Vars.szScriptPath) + 1);
-				*vp = STRING_TO_JSVAL(JS_InternString(cx, relName));
-			}
+			*vp = STRING_TO_JSVAL(JS_InternString(cx, script->GetFilename()));
 			break;
 		case SCRIPT_GAMETYPE:
 			*vp = script->GetState() == InGame ? INT_TO_JSVAL(0) : INT_TO_JSVAL(1);
@@ -49,6 +38,8 @@ JSAPI_PROP(script_getProperty)
 
 JSAPI_FUNC(script_getNext)
 {
+	CDebug cDbg("script getNext");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	if(JS_ContextIterator(ScriptEngine::GetRuntime(), &iterp) == NULL || !JS_GetContextPrivate(iterp))
 		*rval = JSVAL_FALSE;
@@ -63,38 +54,41 @@ JSAPI_FUNC(script_getNext)
 
 JSAPI_FUNC(script_stop)
 {
+	CDebug cDbg("script stop");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	Script* script = (Script*)JS_GetContextPrivate(iterp);
-	if(script->IsRunning())
-		script->Stop();
+	script->Stop();
 
 	return JS_TRUE;
 }
 
 JSAPI_FUNC(script_pause)
 {
+	CDebug cDbg("script pause");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	Script* script = (Script*)JS_GetContextPrivate(iterp);
-
-	if(script->IsRunning())
-		script->Pause();
+	script->Pause();
 
 	return JS_TRUE;
 }
 
 JSAPI_FUNC(script_resume)
 {
+	CDebug cDbg("script resume");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	Script* script = (Script*)JS_GetContextPrivate(iterp);
-
-	if(script->IsPaused())
-		script->Resume();
+	script->Resume();
 
 	return JS_TRUE;	
 }
 
 JSAPI_FUNC(script_send)
 {
+	CDebug cDbg("script send");
+
 	JSContext* iterp = (JSContext*)JS_GetInstancePrivate(cx, obj, &script_class, NULL);
 	Script* script = (Script*)JS_GetContextPrivate(iterp);
 
@@ -109,36 +103,11 @@ JSAPI_FUNC(script_send)
 
 JSAPI_FUNC(my_getScript)
 {
+	CDebug cDbg("getScript");
+
 	JSContext* iterp = NULL;
-	if(argc == 1 && JSVAL_IS_BOOLEAN(argv[0]) && JSVAL_TO_BOOLEAN(argv[0]) == JS_TRUE)
-		iterp = cx;
-	else if(argc == 1 && JSVAL_IS_INT(argv[0]))
-	{
-		// loop over the Scripts in ScriptEngine and find the one with the right threadid
-		DWORD tid = (DWORD)JSVAL_TO_INT(argv[0]);
-		FindHelper args = {tid, NULL, NULL};
-		ScriptEngine::ForEachScript(FindScriptByTid, &args, 1);
-		if(args.script != NULL)
-			iterp = args.script->GetContext();
-		else
-			return JS_TRUE;
-	}
-	else if(argc == 1 && JSVAL_IS_STRING(argv[0]))
-	{
-		char* name = JS_GetStringBytes(JSVAL_TO_STRING(argv[0]));
-		char* ptr = NULL;
-		while((ptr = strchr(name, '/')) != NULL)
-			*ptr = '\\';
-		FindHelper args = {0, name, NULL};
-		ScriptEngine::ForEachScript(FindScriptByName, &args, 1);
-		if(args.script != NULL)
-			iterp = args.script->GetContext();
-		else
-			return JS_TRUE;
-	}
-	else
-		if(!JS_ContextIterator(ScriptEngine::GetRuntime(), &iterp))
-			return JS_TRUE;
+	if(!JS_ContextIterator(ScriptEngine::GetRuntime(), &iterp))
+		return JS_TRUE;
 
 	JSObject* res = BuildObject(cx, &script_class, script_methods, script_props, iterp);
 
@@ -147,30 +116,4 @@ JSAPI_FUNC(my_getScript)
 	*rval = OBJECT_TO_JSVAL(res);
 
 	return JS_TRUE;
-}
-
-bool __fastcall FindScriptByName(Script* script, void* argv, uint argc)
-{
-	FindHelper* helper = (FindHelper*)argv;
-	static uint pathlen = strlen(Vars.szScriptPath) + 1;
-	const char* fname = script->GetFilename();
-	// calculate the relative name from the filename
-	const char* relName = (strlen(fname) > pathlen ? fname + pathlen : fname);
-	if(strcmp(relName, helper->name) == 0)
-	{
-		helper->script = script;
-		return false;
-	}
-	return true;
-}
-
-bool __fastcall FindScriptByTid(Script* script, void* argv, uint argc)
-{
-	FindHelper* helper = (FindHelper*)argv;
-	if(script->GetThreadId() == helper->tid)
-	{
-		helper->script = script;
-		return false;
-	}
-	return true;
 }

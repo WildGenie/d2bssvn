@@ -2,185 +2,172 @@
 
 #include "debugnew/debug_new.h"
 
-struct ChatEventHelper
+VOID ChatEvent(CHAR* lpszNick, CHAR* lpszMsg)
 {
-	char *event, *nick, *msg;
-};
-
-struct CopyDataHelper
-{
-	DWORD mode;
-	char* msg;
-};
-
-struct ItemEventHelper
-{
-	DWORD id;
-	char* code;
-	WORD x;
-	WORD y;
-	WORD mode;
-};
-
-bool __fastcall ExecEventHelper(Script* script, void* argv, uint argc)
-{
-	EventHelper* helper = (EventHelper*)argv;
-	if(script->IsRunning() && script->IsListenerRegistered(helper->evtName))
-		script->ExecEventAsync(helper->evtName, helper->argc, helper->argv);
-	return true;
-}
-
-void LifeEvent(DWORD dwLife)
-{
-	AutoRoot** argv = new AutoRoot*[1];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(dwLife));
-	EventHelper helper = {"melife", argv, 1};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void ManaEvent(DWORD dwMana)
-{
-	AutoRoot** argv = new AutoRoot*[1];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(dwMana));
-	EventHelper helper = {"memana", argv, 1};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void KeyDownUpEvent(WPARAM key, BYTE bUp)
-{
-	AutoRoot** argv = new AutoRoot*[1];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(key));
-	EventHelper helper = {(bUp ? "keyup" : "keydown"), argv, 1};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void PlayerAssignEvent(DWORD dwUnitId)
-{
-	AutoRoot** argv = new AutoRoot*[1];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(dwUnitId));
-	EventHelper helper = {"playerassign", argv, 1};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void MouseClickEvent(int button, POINT pt, bool bUp)
-{
-	AutoRoot** argv = new AutoRoot*[3];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(button));
-	argv[1] = new AutoRoot(INT_TO_JSVAL(pt.x));
-	argv[2] = new AutoRoot(INT_TO_JSVAL(pt.y));
-	EventHelper helper = {(bUp ? "mouseup" : "mousedown"), argv, 3};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void MouseMoveEvent(POINT pt)
-{
-	AutoRoot** argv = new AutoRoot*[2];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(pt.x));
-	argv[1] = new AutoRoot(INT_TO_JSVAL(pt.y));
-	EventHelper helper = {"mousemove", argv, 2};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void ScriptBroadcastEvent(uintN argc, jsval* args)
-{
-	AutoRoot** argv = new AutoRoot*[argc];
-	for(uintN i = 0; i < argc; i++)
-		argv[i] = new AutoRoot(args[i]);
-	EventHelper helper = {"scriptmsg", argv, argc};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-void GoldDropEvent(DWORD GID, WORD itemX, WORD itemY, WORD Mode)
-{
-	AutoRoot** argv = new AutoRoot*[4];
-	argv[0] = new AutoRoot(INT_TO_JSVAL(GID));
-	argv[1] = new AutoRoot(INT_TO_JSVAL(itemX));
-	argv[2] = new AutoRoot(INT_TO_JSVAL(itemY));
-	argv[3] = new AutoRoot(INT_TO_JSVAL(Mode));
-	EventHelper helper = {"golddrop", argv, 4};
-	ScriptEngine::ForEachScript(ExecEventHelper, &helper, 1);
-}
-
-bool __fastcall ChatEventCallback(Script* script, void* argv, uint argc)
-{
-	ChatEventHelper* helper = (ChatEventHelper*)argv;
-	if(script->IsRunning() && script->IsListenerRegistered(helper->event))
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
 	{
-		JSContext* cx = script->GetContext();
+		if(!(*it)->IsRunning())
+			continue;
+		JSContext* cx = (*it)->GetContext();
 		AutoRoot** argv = new AutoRoot*[2];
-		argv[0] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, helper->nick)));
-		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, helper->msg)));
-		script->ExecEventAsync(helper->event, 2, argv);
+		argv[0] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszNick)));
+		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszMsg)));
+		(*it)->ExecEventAsync("chatmsg", 2, argv);
 	}
-	return true;
 }
 
-void ChatEvent(char* lpszNick, char* lpszMsg)
+VOID WhisperEvent(CHAR* lpszNick, CHAR* lpszMsg)
 {
-	ChatEventHelper helper = {"chatmsg", lpszNick, lpszMsg};
-	ScriptEngine::ForEachScript(ChatEventCallback, &helper, 1);
-}
-
-void WhisperEvent(char* lpszNick, char* lpszMsg)
-{
-	ChatEventHelper helper = {"whispermsg", lpszNick, lpszMsg};
-	ScriptEngine::ForEachScript(ChatEventCallback, &helper, 1);
-}
-
-bool __fastcall CopyDataCallback(Script* script, void* argv, uint argc)
-{
-	CopyDataHelper* helper = (CopyDataHelper*)argv;
-	if(script->IsRunning() && script->IsListenerRegistered("copydata"))
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
 	{
-		JSContext* cx = script->GetContext();
+		if(!(*it)->IsRunning())
+			continue;
+		JSContext* cx = (*it)->GetContext();
 		AutoRoot** argv = new AutoRoot*[2];
-		argv[0] = new AutoRoot(INT_TO_JSVAL(helper->mode));
-		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, helper->msg)));
-		script->ExecEventAsync("copydata", 2, argv);
+		argv[0] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszNick)));
+		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszMsg)));
+		(*it)->ExecEventAsync("whispermsg", 2, argv);
 	}
-	return true;
 }
 
-void CopyDataEvent(DWORD dwMode, char* lpszMsg)
+VOID LifeEvent(DWORD dwLife, DWORD dwMana)
 {
-	CopyDataHelper helper = {dwMode, lpszMsg};
-	ScriptEngine::ForEachScript(CopyDataCallback, &helper, 1);
-}
-
-bool __fastcall GameEventCallback(Script* script, void* argv, uint argc)
-{
-	if(script->IsRunning() && script->IsListenerRegistered("gamemsg"))
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
 	{
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[2];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(dwLife));
+		argv[1] = new AutoRoot(INT_TO_JSVAL(dwMana));
+		(*it)->ExecEventAsync("melife", 2, argv);
+	}
+}
+
+VOID CopyDataEvent(DWORD dwMode, CHAR* lpszMsg)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		JSContext* cx = (*it)->GetContext();
+		AutoRoot** argv = new AutoRoot*[2];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(dwMode));
+		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszMsg)));
+		(*it)->ExecEventAsync("copydata", 2, argv);
+	}
+}
+
+VOID GameMsgEvent(CHAR* lpszMsg)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		JSContext* cx = (*it)->GetContext();
 		AutoRoot** argv = new AutoRoot*[1];
-		argv[0] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(script->GetContext(), (char*)argv)));
-		script->ExecEventAsync("gamemsg", 1, argv);
+		argv[0] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, lpszMsg)));
+		(*it)->ExecEventAsync("gamemsg", 1, argv);
 	}
-	return true;
 }
 
-void GameMsgEvent(char* lpszMsg)
+VOID KeyDownUpEvent(WPARAM key, BYTE bUp)
 {
-	ScriptEngine::ForEachScript(GameEventCallback, lpszMsg, 1);
-}
-
-bool __fastcall ItemEventCallback(Script* script, void* argv, uint argc)
-{
-	ItemEventHelper* helper = (ItemEventHelper*)argv;
-	if(script->IsRunning() && script->IsListenerRegistered("itemdrop"))
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
 	{
-		AutoRoot** argv = new AutoRoot*[5];
-		argv[0] = new AutoRoot(INT_TO_JSVAL(helper->id));
-		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(script->GetContext(), helper->code)));
-		argv[2] = new AutoRoot(INT_TO_JSVAL(helper->x));
-		argv[3] = new AutoRoot(INT_TO_JSVAL(helper->y));
-		argv[4] = new AutoRoot(INT_TO_JSVAL(helper->mode));
-		script->ExecEventAsync("itemdrop", 5, argv);
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[1];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(key));
+		(*it)->ExecEventAsync((bUp ? "keyup" : "keydown"), 1, argv);
 	}
-	return true;
 }
 
-void ItemDropEvent(DWORD GID, char* Code, WORD itemX, WORD itemY, WORD Mode)
+VOID PlayerAssignEvent(DWORD dwUnitId)
 {
-	ItemEventHelper helper = {GID, Code, itemX, itemY, Mode};
-	ScriptEngine::ForEachScript(ItemEventCallback, &helper, 1);
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[1];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(dwUnitId));
+		(*it)->ExecEventAsync("playerassign", 1, argv);
+	}
+}
+
+VOID MouseClickEvent(int button, POINT pt, bool bUp)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[3];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(button));
+		argv[1] = new AutoRoot(INT_TO_JSVAL(pt.x));
+		argv[2] = new AutoRoot(INT_TO_JSVAL(pt.y));
+		(*it)->ExecEventAsync((bUp ? "mouseup" : "mousedown"), 3, argv);
+	}
+}
+
+VOID MouseMoveEvent(POINT pt)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[2];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(pt.x));
+		argv[1] = new AutoRoot(INT_TO_JSVAL(pt.y));
+		(*it)->ExecEventAsync("mousemove", 2, argv);
+	}
+}
+
+VOID ScriptBroadcastEvent(uintN argc, jsval* args)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		AutoRoot** argv = new AutoRoot*[argc];
+		for(uintN i = 0; i < argc; i++)
+			argv[i] = new AutoRoot(args[i]);
+		(*it)->ExecEventAsync("scriptmsg", argc, argv);
+	}
+}
+VOID ItemDropEvent(DWORD GID, CHAR* Code, WORD itemX, WORD itemY, WORD Mode)
+{
+	ScriptList scripts;
+	ScriptEngine::GetScripts(scripts);
+	for(ScriptList::iterator it = scripts.begin(); it != scripts.end(); it++)
+	{
+		if(!(*it)->IsRunning())
+			continue;
+		JSContext* cx = (*it)->GetContext();
+		AutoRoot** argv = new AutoRoot*[5];
+		argv[0] = new AutoRoot(INT_TO_JSVAL(GID));
+		argv[1] = new AutoRoot(STRING_TO_JSVAL(JS_NewStringCopyZ(cx, Code)));
+		argv[2] = new AutoRoot(INT_TO_JSVAL(itemX));
+		argv[3] = new AutoRoot(INT_TO_JSVAL(itemY));
+		argv[4] = new AutoRoot(INT_TO_JSVAL(Mode));
+		(*it)->ExecEventAsync("itemdrop", 5, argv);
+	}
 }

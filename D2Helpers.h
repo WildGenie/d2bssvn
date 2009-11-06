@@ -3,15 +3,9 @@
 
 #include "D2Structs.h"
 
-enum DistanceType
-{
-	Euclidean, Chebyshev, Manhattan
-};
+enum DistanceType { Euclidean, Chebyshev, Manhattan };
 
-enum ClientGameState
-{
-	ClientStateNull, ClientStateMenu, ClientStateInGame, ClientStateBusy
-};
+enum ClientGameState { ClientStateMenu, ClientStateInGame, ClientStateBusy };
 
 VOID	Log(CHAR* szFormat, ...);
 

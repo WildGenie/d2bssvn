@@ -5,6 +5,7 @@
 #include "Core.h"
 #include "Constants.h"
 #include "D2Ptrs.h"
+#include "CDebug.h"
 #include "Helpers.h"
 #include "ScriptEngine.h"
 #include "D2BS.h"
@@ -47,32 +48,18 @@ bool AutoRoot::operator==(AutoRoot& other) { return other.value() == var; }
 
 Script::Script(const char* file, ScriptState state) :
 			context(NULL), globalObject(NULL), scriptObject(NULL), script(NULL), execCount(0),
-			isAborted(false), isPaused(false), isReallyPaused(false), scriptState(state),
-			threadHandle(INVALID_HANDLE_VALUE), threadId(0)
+			isAborted(false), isPaused(false), isReallyPaused(false), singleStep(false),
+			scriptState(state), threadHandle(INVALID_HANDLE_VALUE), threadId(0)
 {
+	if(scriptState != Command && _access(file, 0) != 0)
+		throw std::exception("File not found");
+
 	InitializeCriticalSection(&lock);
 	EnterCriticalSection(&lock);
 
-	if(scriptState == Command)
-	{
-		fileName = string("Command Line");
-	}
-	else
-	{
-		if(_access(file, 0) != 0)
-			throw std::exception("File not found");
-
-		char* tmpName = _strdup(file);
-		if(!tmpName)
-			throw std::exception("Could not dup filename");
-
-		_strlwr_s(tmpName, strlen(file)+1);
-		fileName = string(tmpName);
-		replace(fileName.begin(), fileName.end(), '/', '\\');
-		free(tmpName);
-	}
-	try
-	{
+	fileName = string(_strlwr(_strdup(file)));
+	replace(fileName.begin(), fileName.end(), '/', '\\');
+	try {
 		context = JS_NewContext(ScriptEngine::GetRuntime(), 0x2000);
 		if(!context)
 			throw std::exception("Couldn't create the context");
@@ -239,61 +226,48 @@ void Script::Stop(bool force, bool reallyForce)
 	LeaveCriticalSection(&lock);
 }
 
+void Script::EnableSingleStep(void) { singleStep = true; }
+void Script::DisableSingleStep(void) { singleStep = false; }
+bool Script::IsSingleStep(void) { return singleStep; }
+
 bool Script::IsIncluded(const char* file)
 {
-	uint count = 0;
-	char* fname = _strdup(file);
-	if(!fname)
-		return false;
-
-	_strlwr_s(fname, strlen(fname)+1);
+	char* fname = _strlwr((char*)file);
 	StringReplace(fname, '/', '\\');
-	count = includes.count(string(fname));
-	free(fname);
-
-	return !!count;
+	return !!includes.count(string(fname));
 }
 
 bool Script::Include(const char* file)
 {
 	// since includes will happen on the same thread, locking here is acceptable
 	EnterCriticalSection(&lock);
-	char* fname = _strdup((char*)file);
-	if(!fname)
-		return false;
-	_strlwr_s(fname, strlen(fname)+1);
+	char* fname = _strlwr((char*)file);
 	StringReplace(fname, '/', '\\');
 	// ignore already included, 'in-progress' includes, and self-inclusion
-	if(!!includes.count(string(fname)) ||
-	   !!inProgress.count(string(fname)) ||
-	    (fileName == string(fname)))
+	if(IsIncluded(fname) || !!inProgress.count(string(fname)) || (fileName == string(fname)))
 	{
 		LeaveCriticalSection(&lock);
-		free(fname);
 		return true;
 	}
 	bool rval = false;
 	JS_BeginRequest(GetContext());
 
-	JSScript* script = JS_CompileFile(GetContext(), GetGlobalObject(), fname);
+	JSScript* script = JS_CompileFile(GetContext(), globalObject, fname);
 	if(script)
 	{
-		JSObject* scriptObj = JS_NewScriptObject(GetContext(), script);
-		JS_AddRoot(GetContext(), &scriptObj);
 		jsval dummy;
 		inProgress[fname] = true;
-		rval = !!JS_ExecuteScript(GetContext(), GetGlobalObject(), script, &dummy);
+		rval = !!JS_ExecuteScript(GetContext(), globalObject, script, &dummy);
+		JS_DestroyScript(GetContext(), script);
 		if(rval)
 			includes[fname] = true;
 		inProgress.erase(fname);
-		JS_RemoveRoot(GetContext(), &scriptObj);
 	}
 	else
 	{
 		JS_SetContextThread(GetContext());
 		JS_EndRequest(GetContext());
 		LeaveCriticalSection(&lock);
-		free(fname);
 		return false;
 	}
 
@@ -301,7 +275,6 @@ bool Script::Include(const char* file)
 	JS_SetContextThread(GetContext());
 	JS_EndRequest(GetContext());
 	LeaveCriticalSection(&lock);
-	free(fname);
 	return rval;
 }
 
@@ -314,18 +287,6 @@ bool Script::IsRunning(void)
 bool Script::IsAborted()
 {
 	return IsBadReadPtr(this, sizeof(this)) ? true : isAborted;
-}
-
-bool Script::IsListenerRegistered(const char* evtName)
-{
-	// nothing can be registered under an empty name
-	if(strlen(evtName) < 1)
-		return false;
-
-	if(functions.count(evtName) > 0)
-		return true;
-
-	return false;
 }
 
 void Script::RegisterEvent(const char* evtName, jsval evtFunc)
@@ -344,11 +305,6 @@ bool Script::IsRegisteredEvent(const char* evtName, jsval evtFunc)
 {
 	// nothing can be registered under an empty name
 	if(strlen(evtName) < 1)
-		return false;
-
-	// if there are no events registered under that name at all, then obviously there
-	// can't be a specific one registered under that name
-	if(functions.count(evtName) < 1)
 		return false;
 
 	for(FunctionList::iterator it = functions[evtName].begin(); it != functions[evtName].end(); it++)
@@ -410,6 +366,10 @@ void Script::ExecEventAsync(char* evtName, uintN argc, AutoRoot** argv)
 		delete[] argv;
 		return;
 	}
+
+	char msg[50];
+	sprintf_s(msg, sizeof(msg), "Script::ExecEventAsync(%s)", evtName);
+	CDebug cDbg(msg);
 
 	for(uintN i = 0; i < argc; i++)
 		argv[i]->Take();
@@ -486,7 +446,7 @@ DWORD WINAPI FuncThread(void* data)
 		}
 	}
 
-	JS_DestroyContextNoGC(evt->context);
+	JS_DestroyContext(evt->context);
 	// assume we have to clean up both the event and the args, and release autorooted vars
 	for(uintN i = 0; i < evt->argc; i++)
 	{

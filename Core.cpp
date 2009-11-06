@@ -13,55 +13,36 @@
 
 #include "debugnew/debug_new.h"
 
-//! Splits a given string into lines trying not to cut words.
+
+//! Splits a given string in two substrings, trying not to cut words.
 //!
 //! @param str The string to split.
-//! @param maxlen The maximum length of a split line.
-//! @param delim Delimiter to attempt to split at
-//! Will split at the delimiter if possible or at max length itself.
-//! @param lst The list to insert the lines into.
-//! @return True for success False for no conversion or error
-bool SplitLines(const std::string & str, size_t maxlen, const char delim, std::list<std::string> & lst)
+//! @param point Point in which to split. Will split at the previous space if possible,
+//! or at the point itself.
+//! @param lst The list in which to insert.
+//! @param split The iterator in which to insert in the list.
+static void SplitStr(const std::string & str, size_t point, 
+					 std::list<std::string> & lst, 
+					 std::list<std::string>::iterator split)
 {
 	using namespace std;
 
-	if(str.length() < 1)
-		return false;
+	string::const_reverse_iterator it = 
+		find( string::const_reverse_iterator(str.begin() + point + 1), str.rend(), ' ');
 
-	size_t pos, len;
-	string tmp(str);
+	// Split after the space or in the point itself if no spaces are found.
+	string::const_iterator splitPoint(
+		it != str.rend() ? it.base() : str.begin() + point
+		);
 
-	while(tmp.length() > maxlen)
-	{
-		len = tmp.length();
-		// maxlen-1 since std::string::npos indexes from 0
-		pos = tmp.find_last_of(delim, maxlen-1);
-		if(!pos || pos == string::npos)
-		{
-			//Target delimiter was not found, breaking at maxlen
-			// maxlen-1 since std::string::npos indexes from 0
-			lst.push_back(tmp.substr(0, maxlen-1));
-			tmp.erase(0, maxlen-1);
-			continue;
-		}
-		pos = tmp.find_last_of(delim, maxlen-1);
-		if(pos && pos != string::npos)
-		{
-			//We found the last delimiter before maxlen
-			lst.push_back(tmp.substr(0, pos) + delim);
-			tmp.erase(0, pos);
-		}
-		else
-			DebugBreak();
-	}
-	if(!tmp.length())
-		DebugBreak();
-
-	if(tmp.length())
-		lst.push_back(tmp);
-
-	return true;
+	string temp;
+	copy(str.begin(), splitPoint, back_inserter(temp));
+	lst.insert(split, temp);
+	temp.clear();
+	copy(splitPoint, str.end(), back_inserter(temp));
+	lst.insert(split, temp);
 }
+
 
 void Print(const char * szFormat, ...)
 {
@@ -78,14 +59,31 @@ void Print(const char * szFormat, ...)
 
 	replace(str, str + len, REPLACE_CHAR, '%');
 
-	const uint maxlen = 98;
+	const size_t MAXLEN = 98;
 
 	// Break into lines through \n.
 	list<string> lines;
 	string temp;
+
 	stringstream ss(str);
 	while(getline(ss, temp))
-		SplitLines(temp, maxlen, ' ', lines);
+		lines.push_back(temp);
+
+	// Make sure every line is smaller than MAXLEN.
+	for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
+	{
+		// If one line is longer, we split it.
+		if(it->size() > MAXLEN)
+		{
+			list<string>::iterator nxi(it);
+			SplitStr(*it, MAXLEN, lines, ++nxi);
+
+			// We erase the line that is too long.
+			list<string>::iterator tempit = it;
+			++it;
+			lines.erase(tempit);
+		}
+	}
 
 	EnterCriticalSection(&Vars.cPrintSection);
 #ifdef _DONT_USE_CONSOLE_
@@ -99,7 +97,7 @@ void Print(const char * szFormat, ...)
 			delete [] output;
 		}
 	}
-	else if(ClientState() == ClientStateMenu && findControl(4, (char *)NULL, -1, 28, 410, 354, 298)) 	
+ 	else if(ClientState() == ClientStateMenu && findControl(4, (char *)NULL, -1, 28, 410, 354, 298)) 	
 	{
 		// TODO: Double check this function, make sure it is working as intended.
 		for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
@@ -110,18 +108,90 @@ void Print(const char * szFormat, ...)
 		// Print original string.
 		//MessageBox(0, str, "D2BS " D2BS_VERSION, 0);
 		for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
+		{
 			Console::AddLine(*it);
+		}
 	}
 #else
 	for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
-			Console::AddLine(*it);
+	{
+		Console::AddLine(*it);
+	}
 #endif
-
 	LeaveCriticalSection(&Vars.cPrintSection);
 
-	delete[] str;
-	str = NULL;
+	delete [] str;
 }
+
+
+
+//VOID Print(const char * szFormat, ...)
+//{
+//	char * szNCFormat = (char*)szFormat;
+//
+//	// TODO: Come up with a better replacement for 0x255
+//#define REPLACE_CHAR (char)0x255
+//	char* c = 0;
+//	while((c = strchr(szNCFormat, '%')) != 0)
+//		*c = REPLACE_CHAR;
+//
+//	char* szString = NULL;
+//	va_list vaArgs;
+//
+//	va_start(vaArgs, szNCFormat);
+//	int len = _vscprintf(szNCFormat, vaArgs);
+//	szString = new char[len+1];
+//	vsprintf_s(szString, len+1, szNCFormat, vaArgs);
+//	va_end(vaArgs);
+//
+//	c = 0;
+//	while((c = strchr(szString, REPLACE_CHAR)) != 0)
+//		*c = '%';
+//#undef REPLACE_CHAR
+//
+//#define MAXLEN 500
+//	if(len > MAXLEN)
+//	{
+//		for(int i = 0; i < (len/MAXLEN)+1; i++)
+//		{
+//			char tmp[MAXLEN+1] = "";
+//			memcpy(tmp, szString+i*MAXLEN, MAXLEN);
+//			Print(tmp);
+//		}
+//		delete[] szString;
+//		return;
+//	}
+//#undef MAXLEN
+//
+//	EnterCriticalSection(&Vars.cPrintSection);
+//
+//	This comment added by ebola - I have changed GameReady() and updating
+//	here for your info. GameReady() checks for valid unit also. Remove
+//	this when you acknowledge. Thx =]
+//	//if(D2CLIENT_GetPlayerUnit() && GameReady())
+//
+//	if(GameReady())
+//	{
+//		wchar_t* wOutput = AnsiToUnicode(szString);
+//		// the 200 character limit seems to have been lifted... longer than 200 characters didn't crash
+//		D2CLIENT_PrintGameString(wOutput, 0);
+//		delete[] wOutput;
+//	}
+//	else if(findControl(4, (char *)NULL, -1, 28, 410, 354, 298))
+//	{
+//		// TODO: Double check this function, make sure it is working as intended.
+//		// D2MULTI_PrintChannelText(szString, NULL);
+//	}
+//	else
+//	{
+//		MessageBox(0, szString, "D2BS " D2BS_VERSION, 0);
+//	}
+//
+//	LeaveCriticalSection(&Vars.cPrintSection);
+//	delete[] szString;
+//}
+
+
 
 void __declspec(naked) __fastcall Say_ASM(DWORD dwPtr)
 {
@@ -142,18 +212,17 @@ void __declspec(naked) __fastcall Say_ASM(DWORD dwPtr)
 
 void Say(const char *szMessage, ...) 
 { 
-	char szBuffer[255] = {0};
+	CHAR szBuffer[8192] = {0};
 	va_list vaArgs;
 	va_start(vaArgs, szMessage);
 	vsprintf_s(szBuffer, sizeof(szBuffer), szMessage, vaArgs);
 	va_end(vaArgs);
 
-	if(*p_D2CLIENT_PlayerUnit)
+
+	if(D2CLIENT_GetPlayerUnit())
 	{
 		wchar_t* wBuffer = AnsiToUnicode(szBuffer);
 		memcpy((wchar_t*)p_D2CLIENT_ChatTextBuffer, wBuffer, wcslen(wBuffer)*2+1);
-		delete[] wBuffer;
-		wBuffer = NULL;
 
 		MSG* aMsg = new MSG;
 		aMsg->hwnd = D2WIN_GetHwnd();
@@ -165,8 +234,9 @@ void Say(const char *szMessage, ...)
 		aMsg->pt.y = 0x1;
 
 		Say_ASM((DWORD)&aMsg);
+
 		delete aMsg;
-		aMsg = NULL;
+		delete[] wBuffer;
 	}
 	else
 	{
@@ -177,9 +247,6 @@ void Say(const char *szMessage, ...)
 
 bool ClickMap(DWORD dwClickType, WORD wX, WORD wY, BOOL bShift, UnitAny* pUnit)
 {
-	if(!GameReady())
-		return false;
-
 	DWORD dwUnitId = NULL;
 	DWORD dwUnitType = NULL;
 
@@ -195,6 +262,7 @@ bool ClickMap(DWORD dwClickType, WORD wX, WORD wY, BOOL bShift, UnitAny* pUnit)
 	if(dwUnitId)
 	{
 		pUnit = D2CLIENT_FindUnit(dwUnitId, dwUnitType);
+
 		if(!pUnit)
 			return FALSE;
 

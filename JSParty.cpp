@@ -1,11 +1,14 @@
 #include "JSParty.h"
-#include "D2Structs.h"
-#include "D2Helpers.h"
+#include "CDebug.h"
 
 #include "debugnew/debug_new.h"
 
+// Yet another Sheppard production!
+
 JSBool party_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
+	CDebug cDbg("party getProperty");
+
 	RosterUnit* pUnit = (RosterUnit*)JS_GetPrivate(cx, obj);
 
 	if(!pUnit || IsBadReadPtr(pUnit, sizeof(RosterUnit)))
@@ -51,6 +54,8 @@ JSBool party_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 JSBool party_getNext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("party getNext");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -78,4 +83,3 @@ JSBool party_getNext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsva
 	
 	return JS_TRUE;
 }
-

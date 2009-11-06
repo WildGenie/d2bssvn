@@ -67,7 +67,7 @@ private:
 	JSScript* script;
 
 	JSObject *globalObject, *scriptObject;
-	bool isLocked, isPaused, isReallyPaused, isAborted;
+	bool isLocked, isPaused, isReallyPaused, isAborted, singleStep;
 
 	IncludeList includes, inProgress;
 	FunctionMap functions;
@@ -90,7 +90,11 @@ public:
 	bool IsReallyPaused(void) { return isReallyPaused; }
 	void Stop(bool force = false, bool reallyForce = false);
 
-	const char* GetFilename(void) { const char* file = _strdup(fileName.c_str()); return file; }
+	void EnableSingleStep(void);
+	void DisableSingleStep(void);
+	bool IsSingleStep(void);
+
+	char* GetFilename(void) { return scriptState == Command ? "<Command Line>" : fileName.c_str(); }
 	JSContext* GetContext(void) { return context; }
 	JSObject* GetGlobalObject(void) { return globalObject; }
 	JSObject* GetScriptObject(void) { return scriptObject; }
@@ -104,7 +108,6 @@ public:
 	bool IsIncluded(const char* file);
 	bool Include(const char* file);
 
-	bool IsListenerRegistered(const char* evtName);
 	void RegisterEvent(const char* evtName, jsval evtFunc);
 	bool IsRegisteredEvent(const char* evtName, jsval evtFunc);
 	void UnregisterEvent(const char* evtName, jsval evtFunc);

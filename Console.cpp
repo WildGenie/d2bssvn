@@ -61,18 +61,11 @@ void Console::Destroy(void)
 {
 	EnterCriticalSection(&Vars.cConsoleSection);
 	delete box;
-	box = NULL;
 	delete prompt;
-	prompt = NULL;
 	delete text;
-	text = NULL;
 	delete cursor;
-	cursor = NULL;
 	for(unsigned int i = 0; i < lineCount; i++)
-	{
 		delete lineBuffers[i];
-		lineBuffers[i] = NULL;
-	}
 	initialized = false;
 	LeaveCriticalSection(&Vars.cConsoleSection);
 }
@@ -86,7 +79,6 @@ void Console::AddKey(unsigned int key)
 	sprintf_s(newcmd, newlen, "%s%c", cmd, (char)key);
 	text->SetText(newcmd);
 	delete[] newcmd;
-	newcmd = NULL;
 	LeaveCriticalSection(&Vars.cConsoleSection);
 }
 
@@ -146,10 +138,10 @@ void Console::ExecuteCommand(void)
 			sprintf_s(msg, sizeof(msg), "ÿc2D2BSÿc0 :: Loading %s", arg);
 			AddLine(msg);
 
-			char Path[_MAX_PATH+_MAX_FNAME] = "";
-			sprintf_s(Path, sizeof(Path), "%s\\%s", Vars.szScriptPath, arg);
+			CHAR szPath[8192] = "";
+			sprintf_s(szPath, sizeof(szPath), "%s\\%s", Vars.szScriptPath, arg);
 
-			Script* script = ScriptEngine::CompileFile(Path, InGame, true);
+			Script* script = ScriptEngine::CompileFile(szPath, InGame, true);
 			if(script)
 				CreateThread(0, 0, ScriptThread, script, 0, 0);
 			else
@@ -201,7 +193,6 @@ void Console::RemoveLastKey(void)
 		newcmd[strlen(newcmd)-1] = '\0';
 		text->SetText(newcmd);
 		delete[] newcmd;
-		newcmd = NULL;
 	}
 	LeaveCriticalSection(&Vars.cConsoleSection);
 }
@@ -241,11 +232,10 @@ void Console::NextCommand(void)
 
 void Console::AddLine(std::string line)
 {
-	if(!IsReady())
-		Initialize();
-
 	EnterCriticalSection(&Vars.cConsoleSection);
 
+	if(!IsReady())
+		Initialize();
 	// add the new line to the list
 	lines.push_back(line);
 
@@ -270,30 +260,24 @@ void Console::Clear(void)
 
 void Console::Toggle(void)
 {
-	EnterCriticalSection(&Vars.cConsoleSection);
 	ToggleBuffer();
 	TogglePrompt();
-	LeaveCriticalSection(&Vars.cConsoleSection);
 }
 
 void Console::TogglePrompt(void)
 {
-	EnterCriticalSection(&Vars.cConsoleSection);
 	if(!IsEnabled())
 		ShowPrompt();
 	else
 		HidePrompt();
-	LeaveCriticalSection(&Vars.cConsoleSection);
 }
 
 void Console::ToggleBuffer(void)
 {
-	EnterCriticalSection(&Vars.cConsoleSection);
 	if(!IsVisible())
 		ShowBuffer();
 	else
 		HideBuffer();
-	LeaveCriticalSection(&Vars.cConsoleSection);
 }
 
 void Console::Hide(void)
@@ -352,13 +336,8 @@ void Console::ShowPrompt(void)
 void Console::ShowBuffer(void)
 {
 	EnterCriticalSection(&Vars.cConsoleSection);
-
 	visible = true;
-
-	if(!box)
-		DebugBreak();
 	box->SetIsVisible(true);
-
 	for(unsigned int i = 0; i < lineCount; i++)
 		lineBuffers[i]->SetIsVisible(true);
 
@@ -374,7 +353,6 @@ void Console::Draw(void)
 	if(!IsReady())
 		Initialize();
 
-	EnterCriticalSection(&Vars.cConsoleSection);
 	if(IsVisible())
 	{
 		if(count % 15 == 0 && IsEnabled())
@@ -394,7 +372,6 @@ void Console::Draw(void)
 			box->SetXSize(width);
 		}
 	}
-	LeaveCriticalSection(&Vars.cConsoleSection);
 
 	count++;
 }

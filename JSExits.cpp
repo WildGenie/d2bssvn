@@ -1,9 +1,12 @@
 #include "JSExits.h"
+#include "CDebug.h"
 
 #include "debugnew/debug_new.h"
 
 void exit_finalize(JSContext *cx, JSObject *obj)
 {
+	CDebug cDbg("exit finalize");
+
 	myExit* pExit = (myExit*)JS_GetPrivate(cx, obj);
 	if(pExit)
 		delete pExit;
@@ -11,6 +14,8 @@ void exit_finalize(JSContext *cx, JSObject *obj)
 
 JSBool exit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
+	CDebug cDbg("exit getProperty");
+
 	myExit* pExit = (myExit*)JS_GetPrivate(cx, obj);
 
 	*vp = JSVAL_FALSE;
@@ -41,4 +46,3 @@ JSBool exit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 	return JS_TRUE;
 }
-

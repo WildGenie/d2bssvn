@@ -54,11 +54,12 @@ const char* GetUnitName(UnitAny* pUnit, CHAR* szTmp, size_t bufSize)
 	}
 	if(pUnit->dwType == UNIT_ITEM)
 	{
-		wchar_t wBuffer[256] = {0};
+		wchar_t wBuffer[8192] = {NULL};
 		D2CLIENT_GetItemName(pUnit, wBuffer, sizeof(wBuffer));
 		char* szBuffer = UnicodeToAnsi(wBuffer);
-		if(strchr(szBuffer, '\n'))
-			*strchr(szBuffer,'\n') = 0x00;
+		if(strchr(szBuffer, '\n')) {
+            *strchr(szBuffer,'\n') = 0x00;
+		}
 
 		strcpy_s(szTmp, bufSize, szBuffer);
 		delete[] szBuffer;
@@ -120,29 +121,24 @@ VOID SelectInventoryItem(DWORD x, DWORD y, DWORD dwLocation)
 ClientGameState ClientState(VOID)
 {
 	if(*p_D2CLIENT_PlayerUnit && !(*p_D2WIN_FirstControl))
-	{
-		if((*p_D2CLIENT_PlayerUnit)->pInventory &&
-				(*p_D2CLIENT_PlayerUnit)->pPath &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->xPos &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1 &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2 &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel->dwLevelNo)
-			return ClientStateInGame;
-		else
-			return ClientStateBusy;
-	}
+		return ClientStateInGame;
 	else if(!(*p_D2CLIENT_PlayerUnit) && *p_D2WIN_FirstControl)
 		return ClientStateMenu;
-	else if(!(*p_D2CLIENT_PlayerUnit) && !(*p_D2WIN_FirstControl))
-		return ClientStateNull;
 	else
-		DebugBreak();
+		return ClientStateBusy;
 }
 
 BOOL GameReady(VOID)
 {
-	return (ClientState() == ClientStateInGame ? true : false);
+	return !!(ClientState() == ClientStateInGame &&
+			*p_D2CLIENT_PlayerUnit &&
+			(*p_D2CLIENT_PlayerUnit)->pInventory &&
+			(*p_D2CLIENT_PlayerUnit)->pPath &&
+			(*p_D2CLIENT_PlayerUnit)->pPath->xPos &&
+			(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1 &&
+			(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2 &&
+			(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel &&
+			(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel->dwLevelNo);
 }
 
 DWORD GetPlayerArea(VOID)
@@ -204,25 +200,31 @@ BOOL SetSkill(WORD wSkillId, BOOL bLeft)
 
 	D2NET_SendPacket(9, 1, aPacket);
 
-	UnitAny* Me = *p_D2CLIENT_PlayerUnit;
+	UnitAny* Me = D2CLIENT_GetPlayerUnit();
 
-	int timeout = 0;
-	Skill* hand = NULL;
-	while(GameReady())
-	{
-		hand = (bLeft ? Me->pInfo->pLeftSkill : Me->pInfo->pRightSkill);
-		if(hand->pSkillInfo->wSkillId != wSkillId)
+	if(!bLeft) {
+		if(!GameReady())
+			return FALSE;
+		while(Me->pInfo->pRightSkill->pSkillInfo->wSkillId != wSkillId)
 		{
-			if(timeout > 10)
+			Sleep(100);
+			if(!GameReady())
 				return FALSE;
-			timeout++;
 		}
-		else
-			return TRUE;
-		Sleep(100);
 	}
-	
-	return FALSE;
+	else {	
+		if(!GameReady())
+			return FALSE;
+		
+		while(Me->pInfo->pLeftSkill->pSkillInfo->wSkillId != wSkillId)
+		{
+			Sleep(100);
+			if(!GameReady())
+				return FALSE;
+		}
+	}
+
+	return TRUE;
 }
 
 // Compare the skillname to the Game_Skills struct to find the right skill ID to return

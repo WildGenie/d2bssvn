@@ -1,4 +1,5 @@
 #include "JSUnit.h"
+#include "CDebug.h"
 #include "D2Ptrs.h"
 #include "Constants.h"
 #include "Helpers.h"
@@ -11,6 +12,7 @@
 
 VOID unit_finalize(JSContext *cx, JSObject *obj)
 {
+	CDebug cDbg("unit finalize");
 	myUnit* lpUnit = (myUnit*)JS_GetPrivate(cx, obj);
 
 	if(lpUnit)
@@ -22,6 +24,8 @@ VOID unit_finalize(JSContext *cx, JSObject *obj)
 
 INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {	
+	CDebug cDbg("unit getProperty");
+
 	BnetData* pData = *p_D2LAUNCH_BnData;
 	GameStructInfo* pInfo = *p_D2CLIENT_GameInfo;
 
@@ -128,13 +132,16 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 		return JS_TRUE;
 
 	myUnit* lpUnit = (myUnit*)JS_GetPrivate(cx, obj);
+
 	if(!lpUnit || IsBadReadPtr(lpUnit, sizeof(myUnit)) || lpUnit->_dwPrivateType != PRIVATE_UNIT)
 		return JS_TRUE;
 
 	UnitAny* pUnit = D2CLIENT_FindUnit(lpUnit->dwUnitId, lpUnit->dwType);
+
 	if(!pUnit)
 		return JS_TRUE;
 
+	char* tmp = NULL;
 	Room1* pRoom = NULL;
 
 	switch(JSVAL_TO_INT(id))
@@ -149,11 +156,10 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 			*vp = INT_TO_JSVAL(pUnit->dwMode);
 			break;
 		case UNIT_NAME:
-			{
-				char tmp[128] = "";
-				GetUnitName(pUnit, tmp, 128);
-				*vp = STRING_TO_JSVAL(JS_InternString(cx, tmp));
-			}
+			tmp = new char[8192];
+			GetUnitName(pUnit, tmp, 8192);
+			*vp = STRING_TO_JSVAL(JS_InternString(cx, tmp));
+			delete[] tmp;
 			break;
 		case UNIT_ACT:
 			*vp = INT_TO_JSVAL(pUnit->dwAct + 1);
@@ -161,7 +167,7 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 		case UNIT_AREA:
 			pRoom = D2COMMON_GetRoomFromUnit(pUnit);
 			if(pRoom && pRoom->pRoom2 && pRoom->pRoom2->pLevel)
-				*vp = INT_TO_JSVAL(pRoom->pRoom2->pLevel->dwLevelNo);
+				*vp = INT_TO_JSVAL(pRoom->pRoom2->pLevel->dwLevelNo);			
 			break;
 		case UNIT_ID:
 			*vp = INT_TO_JSVAL(pUnit->dwUnitId);
@@ -194,8 +200,10 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 			*vp = INT_TO_JSVAL(D2COMMON_GetUnitStat(pUnit, 12, 0));
 			break;
 		case ME_RUNWALK:
-			 if(pUnit == (*p_D2CLIENT_PlayerUnit))
-				*vp = INT_TO_JSVAL(*p_D2CLIENT_AlwaysRun);
+			*vp = INT_TO_JSVAL(*p_D2CLIENT_AlwaysRun);
+			break;
+		case UNIT_ADDRESS:
+			*vp = INT_TO_JSVAL(pUnit);
 			break;
 		case UNIT_SPECTYPE:
 			DWORD SpecType;
@@ -208,7 +216,7 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 					SpecType |= 0x04;
 				if(pUnit->pMonsterData->fChamp & 1)
 					SpecType |= 0x02;
-				if((pUnit->pMonsterData->fBoss & 1) && (pUnit->pMonsterData->fNormal & 1))
+				if((pUnit->pMonsterData->fBoss & 1)&& (pUnit->pMonsterData->fNormal & 1))
 					SpecType |= 0x01;
 				if(pUnit->pMonsterData->fNormal & 1)
 					SpecType |= 0x00;
@@ -241,6 +249,7 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 				if (D2COMMON_GetItemMagicalMods(pUnit->pItemData->wPrefix))
 					*vp = STRING_TO_JSVAL(JS_InternString(cx, D2COMMON_GetItemMagicalMods(pUnit->pItemData->wPrefix)));
 			break;
+			
 		case ITEM_SUFFIX:
 			if(pUnit->dwType == UNIT_ITEM && pUnit->pItemData)
 				if (D2COMMON_GetItemMagicalMods(pUnit->pItemData->wSuffix))
@@ -262,7 +271,6 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 					char* tmp = UnicodeToAnsi(wszfname);
 					*vp = STRING_TO_JSVAL(JS_InternString(cx, tmp));
 					delete[] tmp;
-					tmp = NULL;
 				}
 			}
 			break;
@@ -292,7 +300,7 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 				*vp = INT_TO_JSVAL(D2COMMON_GetItemText(pUnit->dwTxtFileNo)->ySize);
 			}
 			break;
-		case ITEM_TYPE:
+		case ITEM_Type:
 			if(pUnit->dwType == UNIT_ITEM && pUnit->pItemData) {
 				if(!D2COMMON_GetItemText(pUnit->dwTxtFileNo))
 					break;
@@ -301,19 +309,14 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 			break;
 		case ITEM_DESC:
 			{
-				if(pUnit->dwType != UNIT_ITEM)
-					break;
+			if(pUnit->dwType != UNIT_ITEM)
+				break;
 
-				wchar_t wBuffer[2048] = L"";
+				wchar_t wBuffer[8192] = L"";
 				D2CLIENT_GetItemDesc(pUnit, wBuffer);
-
-				char *tmp = UnicodeToAnsi(wBuffer);
-				if(tmp)
-				{
-					*vp = STRING_TO_JSVAL(JS_InternString(cx, tmp));
-					delete[] tmp;
-					tmp = NULL;
-				}
+				tmp = UnicodeToAnsi(wBuffer);
+				*vp = STRING_TO_JSVAL(JS_InternString(cx, tmp));
+				delete[] tmp;
 			}
 			break;
 		case UNIT_ITEMCOUNT:
@@ -348,22 +351,18 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 				*vp = INT_TO_JSVAL(pUnit->pPath->bDirection);
 			break;
 		case OBJECT_TYPE:
-			if(pUnit->dwType == UNIT_OBJECT && pUnit->pObjectData)
-			{
-				pRoom = D2COMMON_GetRoomFromUnit(pUnit);
-				if(pRoom && pRoom->pRoom2 && pRoom->pRoom2->pLevel && IsTownLevel(pRoom->pRoom2->pLevel->dwLevelNo))
-					*vp = INT_TO_JSVAL(pUnit->pObjectData->Type & 255);
-				else
-					*vp = INT_TO_JSVAL(pUnit->pObjectData->Type);
-			}
-			break;
-		case OBJECT_LOCKED:
-			if(pUnit->dwType == UNIT_OBJECT && pUnit->pObjectData)
-				*vp = INT_TO_JSVAL( pUnit->pObjectData->ChestLocked );
+			if(pUnit->dwType == UNIT_OBJECT)
+				if(pUnit->pObjectData)
+				{
+					pRoom = D2COMMON_GetRoomFromUnit(pUnit);
+					if(pRoom && pRoom->pRoom2 && pRoom->pRoom2->pLevel && IsTownLevel(pRoom->pRoom2->pLevel->dwLevelNo))
+						*vp = INT_TO_JSVAL(pUnit->pObjectData->Type & 255);
+					else
+						*vp = INT_TO_JSVAL(pUnit->pObjectData->Type);
+				}
 			break;
 		case ME_WSWITCH:
-			 if(pUnit == (*p_D2CLIENT_PlayerUnit))
-				*vp = INT_TO_JSVAL(*p_D2CLIENT_bWeapSwitch);
+			*vp = INT_TO_JSVAL(*p_D2CLIENT_bWeapSwitch);
 			break;
 		default:
 			break;
@@ -374,6 +373,8 @@ INT unit_getProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 INT unit_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
+	CDebug cDbg("unit setProperty");
+
 	switch(JSVAL_TO_INT(id))
 	{
 		case ME_CHICKENHP:
@@ -410,6 +411,8 @@ INT unit_setProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 
 INT unit_getUnit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("getUnit");
+
 	if(argc < 1)
 		return JS_TRUE;
 
@@ -427,13 +430,13 @@ INT unit_getUnit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 	if(argc > 1 && JSVAL_IS_STRING(argv[1]))
 		strcpy_s(szName, sizeof(szName), JS_GetStringBytes(JS_ValueToString(cx, argv[1])));
 	
-	if(argc > 1 && JSVAL_IS_INT(argv[1]) && !JSVAL_IS_NULL(argv[1]))
+	if(argc > 1 && JSVAL_IS_INT(argv[1]))
 		nClassId = JSVAL_TO_INT(argv[1]);
 
-	if(argc > 2 && JSVAL_IS_INT(argv[2]) && !JSVAL_IS_NULL(argv[2]))
+	if(argc > 2 && JSVAL_IS_INT(argv[2]))
 		nMode = JSVAL_TO_INT(argv[2]);
 
-	if(argc > 3 && JSVAL_IS_INT(argv[3]) && !JSVAL_IS_NULL(argv[3]))
+	if(argc > 3 && JSVAL_IS_INT(argv[3]))
 		nUnitId = JSVAL_TO_INT(argv[3]);
 
 	UnitAny* pUnit = NULL;
@@ -476,6 +479,8 @@ INT unit_getUnit(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT unit_getNext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit getNext");
+
 	myUnit* lpUnit = (myUnit*)JS_GetPrivate(cx, obj);
 
 	if(!lpUnit || IsBadReadPtr(lpUnit, sizeof(myUnit)) || lpUnit->_dwPrivateType != PRIVATE_UNIT)
@@ -516,6 +521,8 @@ INT unit_getNext(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT unit_cancel(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit cancel");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -540,6 +547,8 @@ INT unit_cancel(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rv
 
 INT unit_repair(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit repair");
+
 	myUnit* lpUnit = (myUnit*)JS_GetPrivate(cx, obj);
 	*rval = JSVAL_FALSE;
 
@@ -566,6 +575,8 @@ INT unit_repair(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rv
 
 INT unit_useMenu(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit useMenu");
+
 	myUnit* lpUnit = (myUnit*)JS_GetPrivate(cx, obj);
 	*rval = JSVAL_FALSE;
 
@@ -587,6 +598,8 @@ INT unit_useMenu(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT unit_interact(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit interact");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -631,10 +644,11 @@ INT unit_interact(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 	if(pUnit->dwType == UNIT_OBJECT && argc == 1 && JSVAL_IS_INT(argv[0]))
 	{
 		// TODO: check the range on argv[0] to make sure it won't crash the game
-		//D2CLIENT_TakeWaypoint(pUnit->dwUnitId, JSVAL_TO_INT(argv[0]));
-		D2CLIENT_TakeWP(pUnit->dwUnitId, JSVAL_TO_INT(argv[0]));
+		D2CLIENT_TakeWaypoint(pUnit->dwUnitId, JSVAL_TO_INT(argv[0]));
+	//	D2CLIENT_TakeWP(pUnit->dwUnitId, JSVAL_TO_INT(argv[0]));
 		
 		*rval = JSVAL_TRUE;
+
 		return JS_TRUE;
 	}
 	else if(pUnit->dwType == UNIT_PLAYER && argc == 1 && JSVAL_IS_INT(argv[0]) && JSVAL_TO_INT(argv[0]) == 1)
@@ -653,6 +667,8 @@ INT unit_interact(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT unit_getStat(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getStat");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -732,6 +748,8 @@ INT unit_getStat(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT unit_getState(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getState");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -763,6 +781,8 @@ INT unit_getState(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT item_getFlags(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getFlags");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -783,6 +803,8 @@ INT item_getFlags(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT item_getFlag(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getFlag");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -808,6 +830,8 @@ INT item_getFlag(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT item_getPrice(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getPrice");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -857,6 +881,8 @@ INT item_getPrice(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT unit_getItems(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getItems");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -907,6 +933,8 @@ INT unit_getItems(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT unit_getSkill(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit getSkill");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1000,6 +1028,8 @@ INT unit_getSkill(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT item_shop(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("item shop");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1056,6 +1086,8 @@ INT item_shop(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval
 
 INT unit_getParent(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getParent");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1109,7 +1141,7 @@ INT unit_getParent(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval 
 	{
 		if(pUnit->pItemData && pUnit->pItemData->pOwnerInventory && pUnit->pItemData->pOwnerInventory->pOwner)
 		{
-			myUnit* pmyUnit = new myUnit; // leaks
+			myUnit* pmyUnit = new myUnit;
 
 			if(!pmyUnit)
 				return JS_TRUE;
@@ -1132,6 +1164,8 @@ INT unit_getParent(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval 
 // Works only on players sinces monsters _CANT_ have mercs!
 INT unit_getMerc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getMerc");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1221,6 +1255,8 @@ INT unit_getMerc(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 // unit.setSkill( int skillId OR String skillName, int hand [, int itemGlobalId] );
 INT unit_setskill(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit setSkill");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1251,6 +1287,8 @@ INT unit_setskill(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT my_overhead(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit overhead");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1284,6 +1322,8 @@ INT my_overhead(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rv
 
 INT unit_getItem(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {	
+	CDebug cDbg("unit getItem");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1338,6 +1378,8 @@ INT unit_getItem(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *r
 
 INT unit_move(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit move");
+
 	if(!GameReady())
 		return JS_TRUE;
 
@@ -1381,6 +1423,8 @@ INT unit_move(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval
 
 INT unit_getEnchant(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit getEnchant");
+
 	if(!GameReady())
 		return JS_TRUE;
 	
@@ -1413,6 +1457,8 @@ INT unit_getEnchant(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval
 
 INT unit_getQuest(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit getQuest");
+
 	if(!GameReady())
 		return JS_TRUE;
 	
@@ -1429,6 +1475,8 @@ INT unit_getQuest(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *
 
 INT unit_getMinionCount(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+	CDebug cDbg("unit getMinionCount");
+
 	if(!GameReady())
 		return JS_TRUE;
 	

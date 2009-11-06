@@ -17,8 +17,8 @@
 #include <set>
 
 #include "JSSQLite.h"
-#include "D2BS.h"
 #include "File.h"
+#include "CDebug.h"
 
 #include "debugnew/debug_new.h"
 
@@ -73,6 +73,7 @@ JSAPI_FUNC(my_sqlite_version)
 
 JSAPI_FUNC(sqlite_ctor)
 {
+	CDebug cDbg("sqlite ctor");
 	if(argc > 0 && !JSVAL_IS_STRING(argv[0]))
 		THROW_ERROR(cx, obj, "Invalid parameters in SQLite constructor");
 	char* path = ":memory:";
@@ -127,6 +128,7 @@ JSAPI_FUNC(sqlite_ctor)
 
 JSAPI_FUNC(sqlite_execute)
 {
+	CDebug cDbg("sqlite execute");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	if(dbobj->open != true)
 		THROW_ERROR(cx, obj, "Database must first be opened!");
@@ -146,6 +148,7 @@ JSAPI_FUNC(sqlite_execute)
 
 JSAPI_FUNC(sqlite_query)
 {
+	CDebug cDbg("sqlite query");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	if(dbobj->open != true)
 		THROW_ERROR(cx, obj, "Database must first be opened!");
@@ -208,6 +211,7 @@ JSAPI_FUNC(sqlite_query)
 
 JSAPI_FUNC(sqlite_close)
 {
+	CDebug cDbg("sqlite close");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	if(!clean_sqlite_db(dbobj)) {
 		char msg[1024];
@@ -220,6 +224,7 @@ JSAPI_FUNC(sqlite_close)
 
 JSAPI_FUNC(sqlite_open)
 {
+	CDebug cDbg("sqlite open");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	if(!dbobj->open) {
 		if(SQLITE_OK != sqlite3_open(dbobj->path, &dbobj->db)) {
@@ -234,6 +239,7 @@ JSAPI_FUNC(sqlite_open)
 
 JSAPI_PROP(sqlite_getProperty)
 {
+	CDebug cDbg("sqlite getProperty");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 
 	switch(JSVAL_TO_INT(id)) {
@@ -264,6 +270,8 @@ JSAPI_PROP(sqlite_getProperty)
 
 void sqlite_finalize(JSContext *cx, JSObject *obj)
 {
+	CDebug cDbg("sqlite finalize");
+
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	JS_SetPrivate(cx, obj, NULL);
 	if(dbobj) {
@@ -275,6 +283,7 @@ void sqlite_finalize(JSContext *cx, JSObject *obj)
 
 JSBool sqlite_equal(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 {
+	CDebug cDbg("sqlite equality");
 	SqliteDB* dbobj = (SqliteDB*)JS_GetInstancePrivate(cx, obj, &sqlite_db_ex.base, NULL);
 	if(!JSVAL_IS_OBJECT(v))
 		return JS_TRUE;;
@@ -292,6 +301,8 @@ JSBool sqlite_equal(JSContext *cx, JSObject *obj, jsval v, JSBool *bp)
 
 JSAPI_FUNC(sqlite_stmt_getobject)
 {
+	CDebug cDbg("dbstatement getObject");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	sqlite3_stmt *stmt = stmtobj->stmt;
 
@@ -351,6 +362,8 @@ JSAPI_FUNC(sqlite_stmt_getobject)
 
 JSAPI_FUNC(sqlite_stmt_colcount)
 {
+	CDebug cDbg("dbstatement getColumnCount");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	sqlite3_stmt *stmt = stmtobj->stmt;
 
@@ -363,6 +376,8 @@ JSAPI_FUNC(sqlite_stmt_colcount)
 
 JSAPI_FUNC(sqlite_stmt_colval)
 {
+	CDebug cDbg("dbstatement getColumnValue");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	sqlite3_stmt *stmt = stmtobj->stmt;
 
@@ -396,6 +411,8 @@ JSAPI_FUNC(sqlite_stmt_colval)
 
 JSAPI_FUNC(sqlite_stmt_colname)
 {
+	CDebug cDbg("dbstatement getColumnName");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	sqlite3_stmt *stmt = stmtobj->stmt;
 
@@ -412,6 +429,8 @@ JSAPI_FUNC(sqlite_stmt_colname)
 
 JSAPI_FUNC(sqlite_stmt_execute)
 {
+	CDebug cDbg("dbstatement execute");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 
 	int res = sqlite3_step(stmtobj->stmt);
@@ -425,6 +444,8 @@ JSAPI_FUNC(sqlite_stmt_execute)
 
 JSAPI_FUNC(sqlite_stmt_bind)
 {
+	CDebug cDbg("dbstatement bind");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	sqlite3_stmt* stmt = stmtobj->stmt;
 	if(argc < 2 || argc > 2 || !(JSVAL_IS_STRING(argv[0]) || JSVAL_IS_INT(argv[0])))
@@ -463,6 +484,8 @@ JSAPI_FUNC(sqlite_stmt_bind)
 
 JSAPI_FUNC(sqlite_stmt_next)
 {
+	CDebug cDbg("dbstatement next");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 
 	int res = sqlite3_step(stmtobj->stmt);
@@ -481,6 +504,8 @@ JSAPI_FUNC(sqlite_stmt_next)
 
 JSAPI_FUNC(sqlite_stmt_skip)
 {
+	CDebug cDbg("dbstatement skip");
+
 	*rval = argv[0];
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	if(argc < 1 || !JSVAL_IS_INT(argv[0]))
@@ -503,6 +528,8 @@ JSAPI_FUNC(sqlite_stmt_skip)
 
 JSAPI_FUNC(sqlite_stmt_reset)
 {
+	CDebug cDbg("dbstatement reset");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	if(SQLITE_OK != sqlite3_reset(stmtobj->stmt))
 		THROW_ERROR(cx, obj, sqlite3_errmsg(stmtobj->assoc_db->db));
@@ -513,6 +540,8 @@ JSAPI_FUNC(sqlite_stmt_reset)
 
 JSAPI_FUNC(sqlite_stmt_close)
 {
+	CDebug cDbg("dbstatement close");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	if(stmtobj->current_row)
 		JS_RemoveRoot(cx, &stmtobj->current_row);
@@ -530,6 +559,8 @@ JSAPI_FUNC(sqlite_stmt_close)
 
 JSAPI_PROP(sqlite_stmt_getProperty)
 {
+	CDebug cDbg("dbstatement getProperty");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 
 	switch(JSVAL_TO_INT(id)) {
@@ -545,6 +576,8 @@ JSAPI_PROP(sqlite_stmt_getProperty)
 
 void sqlite_stmt_finalize(JSContext *cx, JSObject *obj)
 {
+	CDebug cDbg("dbstatement finalize");
+
 	DBStmt* stmtobj = (DBStmt*)JS_GetInstancePrivate(cx, obj, &sqlite_stmt, NULL);
 	JS_SetPrivate(cx, obj, NULL);
 	if(stmtobj) {

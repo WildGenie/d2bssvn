@@ -11,8 +11,6 @@
 
 typedef std::map<std::string, Script*> ScriptMap;
 
-typedef bool (__fastcall *ScriptCallback)(Script*, void*, uint);
-
 enum EngineState {
 	Starting,
 	Running,
@@ -46,12 +44,14 @@ public:
 	static Script* CompileCommand(const char* command);
 	static void DisposeScript(Script* script);
 
-	static void ForEachScript(ScriptCallback callback, void* argv, uint argc);
+	static void GetScripts(ScriptList& list);
 	static unsigned int GetCount(bool active = true, bool unexecuted = false);
 
 	static JSRuntime* GetRuntime(void) { return runtime; }
 
 	static void StopAll(bool forceStop = false);
+	static void PauseAll(void);
+	static void ResumeAll(void);
 	static void ExecEventAsync(char* evtName, AutoRoot** argv, uintN argc);
 	static void InitClass(JSContext* context, JSObject* globalObject, JSClass* classp,
 							 JSNative ctor, JSFunctionSpec* methods, JSPropertySpec* props,
@@ -59,15 +59,10 @@ public:
 	static void DefineConstant(JSContext* context, JSObject* globalObject, const char* name, int value);
 };
 
-// this ForEachScript helper is exposed in case it can be of use somewhere
-bool __fastcall ExecEventOnScript(Script* script, void* argv, uint argc);
-struct EventHelper
-{
-	char* evtName;
-	AutoRoot** argv;
-	uintN argc;
-};
-
+JSBool watchHandler(JSContext* cx, JSObject* obj, jsval id, jsval old, jsval* newval, void* closure);
+JSTrapStatus debuggerCallback(JSContext* cx, JSScript* script, jsbytecode* pc, jsval* rval, void* closure);
+JSTrapStatus exceptionCallback(JSContext* cx, JSScript* script, jsbytecode* pc, jsval* rval, void* closure);
+void* executeCallback(JSContext* cx, JSStackFrame* frame, JSBool before, JSBool* ok, void* closure);
 JSBool branchCallback(JSContext* cx, JSScript* script);
 JSBool eventBranchCallback(JSContext* cx, JSScript* script);
 JSBool contextCallback(JSContext* cx, uintN contextOp);
