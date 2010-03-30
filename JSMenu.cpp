@@ -1,4 +1,5 @@
 #include "JSMenu.h"
+//#include "Control.h"
 #include "JSControl.h"
 #include "Constants.h"
 #include "Helpers.h"
@@ -43,7 +44,7 @@ JSAPI_FUNC(my_login)
 	Control* pControl = NULL;
 	int location = 0;
 	int timeout = 0;
-	bool loginComplete = FALSE, skippedToBnet = TRUE;
+	bool loginComplete = FALSE,	skippedToBnet = TRUE;
 	Vars.bBlockKeys = Vars.bBlockMouse = TRUE;
 
 	while(!loginComplete)
@@ -127,25 +128,24 @@ JSAPI_FUNC(my_login)
 					break;
 				}
 			
-			case OOG_MAIN_MENU_CONNECTING:
+			case OOG_MAIN_MENU_CONNECTING: 
 			case OOG_CHARACTER_SELECT_PLEASE_WAIT:
-			case OOG_PLEASE_WAIT:
+			case OOG_PLEASE_WAIT: 
 			case OOG_GATEWAY:
-			case OOG_CHARACTER_SELECT_NO_CHARS:
+			case OOG_CHARACTER_SELECT_NO_CHARS: 
 			case OOG_NONE:
-//				timeout++;
-//				break;
-			case OOG_LOBBY:
-			case OOG_INLINE:
-			case OOG_CHAT:
-			case OOG_CREATE:
-			case OOG_JOIN:
-			case OOG_LADDER:
-			case OOG_CHANNEL:
-			case OOG_GAME_EXIST:
-			case OOG_GAME_DOES_NOT_EXIST:
 				timeout++;
-				//loginComplete=TRUE;
+				break;
+			case OOG_LOBBY: 
+			case OOG_INLINE: 
+			case OOG_CHAT: 
+			case OOG_CREATE:
+			case OOG_JOIN: 
+			case OOG_LADDER: 
+			case OOG_CHANNEL: 
+			case OOG_GAME_EXIST: 
+			case OOG_GAME_DOES_NOT_EXIST:	
+				loginComplete=TRUE;
 				break;
 			case OOG_UNABLE_TO_CONNECT:
 				errorMsg = "Unable to connect";
@@ -161,22 +161,24 @@ JSAPI_FUNC(my_login)
 				break;
 			default:
 				errorMsg = "Unhandled login location";
-				break;
+				break;				
 		}
 
 		if(_strcmpi(errorMsg, ""))
 		{
 			Vars.bBlockKeys = Vars.bBlockMouse = FALSE;
-			THROW_ERROR(cx, errorMsg);
+			THROW_ERROR(cx, errorMsg);						
+			break;
 		}
 
 		if((timeout*100) > loginTime)
 		{
 			Vars.bBlockKeys = Vars.bBlockMouse = FALSE;
 			THROW_ERROR(cx, "login time out");
+			break;
 		}
 
-		if(ClientState() == ClientStateInGame || ClientState() == ClientStateBusy)
+		if(ClientState() == ClientStateInGame)
 			loginComplete = TRUE;
 		
 		Sleep(100);
@@ -210,8 +212,10 @@ JSAPI_FUNC(my_createGame)
 	char *name = NULL, *pass = NULL;
 	int32 diff = 3;
 	if(!JS_ConvertArguments(cx, argc, argv, "s/si", &name, &pass, &diff))
-		THROW_ERROR(cx, "Could not convert arguments");
-
+	{
+		JS_ReportError(cx, "Invalid arguments specified to createGame");
+		return JS_FALSE;
+	}
 	if(!pass)
 		pass = "";
 
@@ -231,8 +235,10 @@ JSAPI_FUNC(my_joinGame)
 
 	char *name = NULL, *pass = NULL;
 	if(!JS_ConvertArguments(cx, argc, argv, "s/s", &name, &pass))
-		THROW_ERROR(cx, "Could not convert arguments");
-
+	{
+		JS_ReportError(cx, "Invalid arguments specified to createGame");
+		return JS_FALSE;
+	}
 	if(!pass)
 		pass = "";
 
@@ -284,8 +290,8 @@ JSAPI_FUNC(my_addProfile)
 	{
 		char settings[600] = "";
 		sprintf_s(settings, sizeof(settings),
-				"mode=%s\tgateway=%s\tusername=%s\tpassword=%s\tcharacter=%s\tspdifficulty=%d\t",
-				mode, gateway, username, password, charname, spdifficulty);
+					"mode=%s\tgateway=%s\tusername=%s\tpassword=%s\tcharacter=%s\tspdifficulty=%d\t",
+					mode, gateway, username, password, charname, spdifficulty);
 
 		StringReplace(settings, '\t', '\0', 600);
 		WritePrivateProfileSection(*args[0], settings, file);
@@ -311,10 +317,10 @@ JSAPI_FUNC(my_createCharacter)
 
 	char* name = NULL;
 	int32 type = -1;
-	JSBool hardcore = JS_FALSE, ladder = JS_FALSE, expansion = JS_TRUE;
-	if(!JS_ConvertArguments(cx, argc, argv, "si/bbb", &name, &type, &hardcore, &ladder, &expansion))
-		THROW_ERROR(cx, "Could not convert arguments");
+	JSBool hc = JS_FALSE, ladder = JS_FALSE;
+	if(!JS_ConvertArguments(cx, argc, argv, "si/bb", &name, &type, &hc, &ladder))
+		return JS_FALSE;
 
-	*rval = BOOLEAN_TO_JSVAL(!!OOG_CreateCharacter(name, type, !!hardcore, !!ladder, !!expansion));
+	*rval = BOOLEAN_TO_JSVAL(!!OOG_CreateCharacter(name, type, !!hc, !!ladder));
 	return JS_TRUE;
 }

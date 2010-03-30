@@ -11,6 +11,7 @@
 #include "D2Handlers.h"
 #include "Console.h"
 #include "D2BS.h"
+#include "D2Ptrs.h"
 
 #ifdef _MSVC_DEBUG
 #include "D2Loader.h"
@@ -84,7 +85,7 @@ BOOL Startup(void)
 	InitializeCriticalSection(&Vars.cConsoleSection);
 	InitializeCriticalSection(&Vars.cGameLoopSection);
 
-	Vars.bNeedShutdown = TRUE;
+	Vars.bNeedShutdown = TRUE;	
 	Vars.bChangedAct = FALSE;
 	Vars.bGameLoopEntered = FALSE;
 

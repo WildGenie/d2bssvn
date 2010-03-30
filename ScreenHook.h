@@ -3,7 +3,6 @@
 #include <list>
 #include <windows.h>
 
-#include "D2Ptrs.h"
 #include "Script.h"
 #include "ScriptEngine.h"
 #include "D2Helpers.h"

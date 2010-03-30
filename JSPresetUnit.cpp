@@ -1,7 +1,6 @@
 #include "JSPresetUnit.h"
 
-#include "D2Structs.h"
-//#include "D2Ptrs.h"
+#include "D2Ptrs.h"
 #include "CriticalSections.h"
 #include "D2Helpers.h"
 
@@ -55,7 +54,7 @@ JSAPI_PROP(presetunit_getProperty)
 
 JSAPI_FUNC(my_getPresetUnits)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 1)
@@ -76,9 +75,9 @@ JSAPI_FUNC(my_getPresetUnits)
 	uint nClassId = NULL;
 	uint nType = NULL;
 
-	if(argc >= 2 && JSVAL_IS_INT(argv[1]))
+	if(argc >= 2)
 		nType = JSVAL_TO_INT(argv[1]);
-	if(argc >= 3 && JSVAL_IS_INT(argv[2]))
+	if(argc >= 3)
 		nClassId = JSVAL_TO_INT(argv[2]);
 
 	CriticalRoom cRoom;
@@ -93,7 +92,7 @@ JSAPI_FUNC(my_getPresetUnits)
 
 		if(!pRoom->pPreset)
 		{
-			D2COMMON_AddRoomData(D2CLIENT_GetPlayerUnit()->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, D2CLIENT_GetPlayerUnit()->pPath->pRoom1);
+			D2COMMON_AddRoomData(p_D2CLIENT_MyPlayerUnit->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, p_D2CLIENT_MyPlayerUnit->pPath->pRoom1);
 			bAddedRoom = TRUE;
 		}
 		
@@ -128,7 +127,7 @@ JSAPI_FUNC(my_getPresetUnits)
 
 		if(bAddedRoom)
 		{
-			D2COMMON_RemoveRoomData(D2CLIENT_GetPlayerUnit()->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, D2CLIENT_GetPlayerUnit()->pPath->pRoom1);
+			D2COMMON_RemoveRoomData(p_D2CLIENT_MyPlayerUnit->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, p_D2CLIENT_MyPlayerUnit->pPath->pRoom1);
 			bAddedRoom = FALSE;			
 		}
 	}
@@ -140,7 +139,7 @@ JSAPI_FUNC(my_getPresetUnits)
 
 JSAPI_FUNC(my_getPresetUnit)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 1)
@@ -173,9 +172,9 @@ JSAPI_FUNC(my_getPresetUnit)
 
 		bAddedRoom = FALSE;
 
-		if(!pRoom->pPreset)
+		if(!pRoom->pRoom1)
 		{
-			D2COMMON_AddRoomData(D2CLIENT_GetPlayerUnit()->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, D2CLIENT_GetPlayerUnit()->pPath->pRoom1);
+			D2COMMON_AddRoomData(p_D2CLIENT_MyPlayerUnit->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, p_D2CLIENT_MyPlayerUnit->pPath->pRoom1);
 			bAddedRoom = TRUE;
 		}
 
@@ -209,7 +208,7 @@ JSAPI_FUNC(my_getPresetUnit)
 
 		if(bAddedRoom)
 		{
-			D2COMMON_RemoveRoomData(D2CLIENT_GetPlayerUnit()->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, D2CLIENT_GetPlayerUnit()->pPath->pRoom1);
+			D2COMMON_RemoveRoomData(p_D2CLIENT_MyPlayerUnit->pAct, pLevel->dwLevelNo, pRoom->dwPosX, pRoom->dwPosY, p_D2CLIENT_MyPlayerUnit->pPath->pRoom1);
 			bAddedRoom = FALSE;			
 		}
 	}

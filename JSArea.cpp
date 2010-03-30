@@ -1,5 +1,5 @@
 #include "JSArea.h"
-//#include "D2Ptrs.h"
+#include "D2Ptrs.h"
 //#include "D2Helpers.h"
 #include "JSExits.h"
 #include "CriticalSections.h"
@@ -23,11 +23,11 @@ JSAPI_PROP(area_getProperty)
 {
 	myArea* pArea = (myArea*)JS_GetPrivate(cx, obj);;
 	if(!pArea)
-		THROW_ERROR(cx, "Could not convert myArea object")
+		return JS_FALSE;
 
 	Level* pLevel = GetLevel(pArea->AreaId);
 	if(!pLevel)
-		return JS_TRUE;
+		return JS_FALSE;
 
 	switch(JSVAL_TO_INT(id))
 		{
@@ -79,7 +79,7 @@ JSAPI_PROP(area_getProperty)
 			break;
 		case AUNIT_NAME:
 			{
-				LevelTxt* pTxt = D2COMMON_GetLevelTxt(pArea->AreaId);
+				LevelTxt* pTxt = D2COMMON_GetLevelText(pArea->AreaId);
 				if(pTxt)
 					*vp = STRING_TO_JSVAL(JS_InternString(cx, pTxt->szName));
 			}
@@ -106,7 +106,7 @@ JSAPI_PROP(area_getProperty)
 
 JSAPI_FUNC(my_getArea)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	int32 nArea = GetPlayerArea();

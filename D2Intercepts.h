@@ -5,7 +5,6 @@
 
 void GameDraw_STUB();;
 void GameInput_Interception();
-BOOL GameMinimize_Interception(void);
 void GamePacketReceived_STUB();
 UnitAny* myGetSelectedUnit(void);
 void Whisper_Intercept();

@@ -18,11 +18,12 @@ bool SplitLines(const std::string & str, size_t maxlen, const char delim, std::l
 	if(str.length() < 1 || maxlen < 2)
 		return false;
 
-	size_t pos;
+	size_t pos, len;
 	string tmp(str);
 
 	while(tmp.length() > maxlen)
 	{
+		len = tmp.length();
 		// maxlen-1 since std::string::npos indexes from 0
 		pos = tmp.find_last_of(delim, maxlen-1);
 		if(!pos || pos == string::npos)
@@ -43,9 +44,11 @@ bool SplitLines(const std::string & str, size_t maxlen, const char delim, std::l
 		else
 			DebugBreak();
 	}
+	if(!tmp.length())
+		DebugBreak();
 
-	ASSERT(tmp.length());
-	lst.push_back(tmp);
+	if(tmp.length())
+		lst.push_back(tmp);
 
 	return true;
 }
@@ -65,38 +68,42 @@ void Print(const char * szFormat, ...)
 
 	replace(str, str + len, REPLACE_CHAR, '%');
 
+	const uint maxlen = 98;
+
 	// Break into lines through \n.
 	list<string> lines;
 	string temp;
 	stringstream ss(str);
-
-	const uint maxlen = 98;
 	while(getline(ss, temp))
 		SplitLines(temp, maxlen, ' ', lines);
 
 	EnterCriticalSection(&Vars.cPrintSection);
-
-	for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
+	if(Vars.bUseGamePrint)
 	{
-		if(Vars.bUseGamePrint)
+		if(ClientState() == ClientStateInGame)
 		{
-			if(ClientState() == ClientStateInGame)
+			// Convert and send every line.
+			for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
 			{
-				wchar_t *output = AnsiToUnicode(it->c_str());
+				wchar_t * output = AnsiToUnicode(it->c_str());
 				D2CLIENT_PrintGameString(output, 0);
 				delete [] output;
 			}
-			else if(ClientState() == ClientStateMenu && findControl(4, (char *)NULL, -1, 28, 410, 354, 298))
-				D2MULTI_PrintChannelText((char* )it->c_str(), 0);
 		}
-		else
-			Console::AddLine(*it);
+		else if(ClientState() == ClientStateMenu && findControl(4, (char *)NULL, -1, 28, 410, 354, 298)) 	
+		{
+			// TODO: Double check this function, make sure it is working as intended.
+			for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
+				D2MULTI_PrintChannelText((char* )it->c_str(), 0); 	
+		}
 	}
+	for(list<string>::iterator it = lines.begin(); it != lines.end(); ++it)
+			Console::AddLine(*it);
+
+	LeaveCriticalSection(&Vars.cPrintSection);
 
 	delete[] str;
 	str = NULL;
-
-	LeaveCriticalSection(&Vars.cPrintSection);
 }
 
 void __declspec(naked) __fastcall Say_ASM(DWORD dwPtr)
@@ -125,7 +132,7 @@ void Say(const char *szMessage, ...)
 	va_end(vaArgs);
 	Vars.bDontCatchNextMsg = TRUE;
 
-	if(*p_D2CLIENT_PlayerUnit)
+	if(p_D2CLIENT_MyPlayerUnit)
 	{
 		wchar_t* wBuffer = AnsiToUnicode(szBuffer);
 		memcpy((wchar_t*)p_D2CLIENT_ChatMsg, wBuffer, wcslen(wBuffer)*2+1);
@@ -152,16 +159,10 @@ void Say(const char *szMessage, ...)
 	}
 }
 
-bool ClickMap(DWORD dwClickType, WORD wX = 0xFFFF, WORD wY = 0xFFFF, BOOL bShift = FALSE, UnitAny* pUnit = NULL)
+bool ClickMap(DWORD dwClickType, WORD wX, WORD wY, BOOL bShift, UnitAny* pUnit)
 {
 	if(ClientState() != ClientStateInGame)
 		return false;
-
-	if((wX < 0xFFFF && wY < 0xFFFF && pUnit) || ((wX == 0xFFFF || wY == 0xFFFF) && !pUnit))
-	{
-		DebugBreak();
-		return false;
-	}
 
 	POINT Click = {wX, wY};
 	if(pUnit)
@@ -182,7 +183,7 @@ bool ClickMap(DWORD dwClickType, WORD wX = 0xFFFF, WORD wY = 0xFFFF, BOOL bShift
 
 		Vars.bClickAction = TRUE;
 
-		D2CLIENT_clickMap(dwClickType, Click.x, Click.y, bShift ? 0x0C : 0x08);
+		D2CLIENT_ClickMap(dwClickType, Click.x, Click.y, bShift ? 0x0C : 0x08);
 		D2CLIENT_SetSelectedUnit(NULL);
 
 		Vars.bClickAction = FALSE;
@@ -195,7 +196,7 @@ bool ClickMap(DWORD dwClickType, WORD wX = 0xFFFF, WORD wY = 0xFFFF, BOOL bShift
 		Vars.dwSelectedUnitType = NULL;
 
 		Vars.bClickAction = TRUE;
-		D2CLIENT_clickMap(dwClickType, Click.x, Click.y, bShift ? 0x0C : 8);
+		D2CLIENT_ClickMap(dwClickType, Click.x, Click.y, bShift ? 0x0C : 8);
 		Vars.bClickAction = FALSE;
 	}
 

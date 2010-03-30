@@ -7,7 +7,8 @@ EMPTY_CTOR(control)
 
 void control_finalize(JSContext *cx, JSObject *obj)
 {
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
+
 	if(pData)
 	{
 		JS_SetPrivate(cx, obj, NULL);
@@ -18,15 +19,15 @@ void control_finalize(JSContext *cx, JSObject *obj)
 JSAPI_PROP(control_getProperty)
 {
 	if(ClientState() != ClientStateMenu)
-		return JS_TRUE;
+		return JS_FALSE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_FALSE;
 
 	Control* ctrl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(!ctrl)
-		return JS_TRUE;
+		return JS_FALSE;
 
 	switch(JSVAL_TO_INT(id))
 	{
@@ -85,15 +86,15 @@ JSAPI_PROP(control_getProperty)
 JSAPI_PROP(control_setProperty)
 {
 	if(ClientState() != ClientStateMenu)
-		return JS_TRUE;
+		return JS_FALSE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_FALSE;
 
 	Control* ctrl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(!ctrl)
-		return JS_TRUE;
+		return JS_FALSE;
 
 	switch(JSVAL_TO_INT(id))
 	{
@@ -142,9 +143,9 @@ JSAPI_FUNC(control_getNext)
 	if(ClientState() != ClientStateMenu)
 		return JS_TRUE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_TRUE;
 
 	Control* pControl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(pControl && pControl->pNext)
@@ -167,8 +168,7 @@ JSAPI_FUNC(control_getNext)
 	{
 		JS_ClearScope(cx, obj);
 		if(JS_ValueToObject(cx, JSVAL_NULL, &obj) == JS_FALSE)
-			THROW_ERROR(cx, "Could not convert JSVAL_NULL to ojbect");
-
+			return JS_TRUE;
 		*rval = JSVAL_FALSE;
 	}
 	
@@ -180,9 +180,9 @@ JSAPI_FUNC(control_click)
 	if(ClientState() != ClientStateMenu)
 		return JS_TRUE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_TRUE;
 
 	Control* pControl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(!pControl)
@@ -209,9 +209,9 @@ JSAPI_FUNC(control_setText)
 	if(ClientState() != ClientStateMenu)
 		return JS_TRUE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_TRUE;
 
 	Control* pControl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(!pControl)
@@ -226,11 +226,11 @@ JSAPI_FUNC(control_setText)
 	char* pText = JS_GetStringBytes(JS_ValueToString(cx, argv[0]));
 	if(!pText)
 		return JS_TRUE;
-
 	wchar_t* szwText = AnsiToUnicode(pText);
-	D2WIN_SetControlText(pControl, szwText);
-	delete[] szwText;
 
+	D2WIN_SetControlText(pControl, szwText);
+
+	delete[] szwText;
 	return JS_TRUE;
 }
 
@@ -239,28 +239,19 @@ JSAPI_FUNC(control_getText)
 	if(ClientState() != ClientStateMenu)
 		return JS_TRUE;
 
-	ControlData *pData = (ControlData*)JS_GetPrivate(cx, obj);
+	ControlData *pData = ((ControlData*)JS_GetPrivate(cx, obj));
 	if(!pData)
-		THROW_ERROR(cx, "Could not get control data");
+		return JS_TRUE;
 
 	Control* pControl = findControl(pData->dwType, (char *)NULL, -1, pData->dwX, pData->dwY, pData->dwSizeX, pData->dwSizeY);
 	if(!pControl)
 	{
-		JS_ClearScope(cx, obj);
-		if(JS_ValueToObject(cx, JSVAL_NULL, &obj) == JS_FALSE)
-			THROW_ERROR(cx, "Could not convert JSVAL_NULL to object");
-		*rval = JSVAL_FALSE;
+		*rval = INT_TO_JSVAL(0);
 		return JS_TRUE;
 	}
 
 	if(pControl->dwType != 4 || !pControl->pFirstText)
-	{
-		JS_ClearScope(cx, obj);
-		if(JS_ValueToObject(cx, JSVAL_NULL, &obj) == JS_FALSE)
-			THROW_ERROR(cx, "Could not convert JSVAL_NULL to object");
-		*rval = JSVAL_FALSE;
 		return JS_TRUE;
-	}
 
 	JSObject* pReturnArray = JS_NewArrayObject(cx, 0, NULL);
 	INT nArrayCount = 0;
@@ -289,25 +280,16 @@ JSAPI_FUNC(my_getControl)
 	if(ClientState() != ClientStateMenu)
 		return JS_TRUE;
 
-	if(argc > 5)
-		THROW_ERROR(cx, "Incorrect number of arguments passed");
-
 	int32 nType = -1, nX = -1, nY = -1, nXSize = -1, nYSize = -1;
 	int32 *args[] = {&nType, &nX, &nY, &nXSize, &nYSize};
 
-	for(uintN i = 0; i < argc && i < 5; i++)
+	for(uintN i = 0; i < argc; i++)
 		if(JSVAL_IS_INT(argv[i]))
 			JS_ValueToECMAInt32(cx, argv[i], args[i]);
 
 	Control* pControl = findControl(nType, (char*)NULL, -1, nX, nY, nXSize, nYSize);
 	if(!pControl)
-	{
-		JS_ClearScope(cx, obj);
-		if(JS_ValueToObject(cx, JSVAL_NULL, &obj) == JS_FALSE)
-			THROW_ERROR(cx, "Could not convert JSVAL_NULL to object");
-		*rval = JSVAL_FALSE;
 		return JS_TRUE;
-	}
 
 	ControlData* data = new ControlData;
 	data->dwType = nType;

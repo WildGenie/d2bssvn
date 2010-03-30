@@ -16,6 +16,8 @@
 
 using namespace std;
 
+bool __fastcall UpdatePlayerGid(Script* script, void*, uint) { script->UpdatePlayerGid(); return true; }
+
 DWORD WINAPI D2Thread(LPVOID lpParam)
 {
 	bool beginStarter = true;
@@ -33,54 +35,50 @@ DWORD WINAPI D2Thread(LPVOID lpParam)
 		return FALSE;
 	}
 
-	ClientGameState oldState = ClientStateNull;
 	while(Vars.bActive)
 	{
-		// TODO look at this more
-		ClientGameState state = ClientState();
-		if((state == ClientStateInGame || state == ClientStateMenu) && oldState != state)
+		switch(ClientState())
 		{
-			// we switched from in game to out or something
-			JS_TriggerAllOperationCallbacks(ScriptEngine::GetRuntime());
-			oldState = state;
-
-			switch(state)
-			{
 			case ClientStateInGame:
+			{
+				if(bInGame)
 				{
-					if(bInGame)
-					{
-						if((Vars.dwMaxGameTime && Vars.dwGameTime && 
-							(GetTickCount() - Vars.dwGameTime) > Vars.dwMaxGameTime))
-							D2CLIENT_ExitGame();
-					}
-					else
-					{
-						Vars.dwGameTime = GetTickCount();
-						D2CLIENT_InitInventory();
-
-						GameJoined();
-
-						bInGame = true;
-					}
-					break;
+					if((Vars.dwMaxGameTime && Vars.dwGameTime && 
+							(GetTickCount() - Vars.dwGameTime) > Vars.dwMaxGameTime) ||
+							(!IsTownLevel(GetPlayerArea()) &&
+							(Vars.nChickenHP && Vars.nChickenHP >= GetUnitHP(p_D2CLIENT_MyPlayerUnit)) ||
+							(Vars.nChickenMP && Vars.nChickenMP >= GetUnitMP(p_D2CLIENT_MyPlayerUnit))))
+					D2CLIENT_ExitGame();
 				}
-			case ClientStateMenu:
+				else
 				{
-					MenuEntered(beginStarter);
-					beginStarter = false;
-					if(bInGame)
-					{
-						Vars.dwGameTime = 0;
-						bInGame = false;
-					}
-					break;
+					Sleep(1000);
+
+					Vars.dwGameTime = GetTickCount();
+					D2CLIENT_InitInventory();
+					ScriptEngine::ForEachScript(UpdatePlayerGid, NULL, 0);
+
+					GameJoined();
+
+					bInGame = true;
 				}
-			default:
 				break;
 			}
+			case ClientStateMenu:
+			{
+				MenuEntered(beginStarter);
+				beginStarter = false;
+				if(bInGame)
+				{
+					Vars.dwGameTime = NULL;
+					bInGame = false;
+				}
+				break;
+			}
+			case ClientStateBusy:
+			case ClientStateNull:
+				break;
 		}
-
 		Sleep(50);
 	}
 
@@ -94,14 +92,16 @@ DWORD __fastcall GameInput(wchar_t* wMsg)
 	if(Vars.bDontCatchNextMsg)
 	{
 		Vars.bDontCatchNextMsg = FALSE;
-		return 0;
+		return NULL;
 	}
 
 	char* szBuffer = UnicodeToAnsi(wMsg);
 	bool result = false;
 
 	if(szBuffer[0] == '.')
+	{
 		result = ProcessCommand(szBuffer+1, false);
+	}
 
 	delete[] szBuffer;
 
@@ -123,7 +123,7 @@ DWORD __fastcall GamePacketReceived(BYTE* pPacket, DWORD dwSize)
 		case 0xA7: return DelayedStateHandler(pPacket, dwSize);
 	}
 
-	return 1;
+	return TRUE;
 }
 
 LONG WINAPI GameEventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -145,6 +145,7 @@ LONG WINAPI GameEventHandler(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				CopyDataEvent(pCopy->dwData, (char*)pCopy->lpData);
 			}
 			return TRUE;
+		// TODO: we don't need this for 1.13
 		case WM_ACTIVATEAPP:
 			if(!wParam && Vars.bBlockMinimize)
 				return NULL;
@@ -172,10 +173,10 @@ LRESULT CALLBACK KeyPress(int code, WPARAM wParam, LPARAM lParam)
 		bool isUp = previousState && transitionState;
 
 		bool gameState = ClientState() == ClientStateInGame;
-		bool chatBoxOpen = gameState ? !!D2CLIENT_GetUIState(5) : false;
-		bool escMenuOpen = gameState ? !!D2CLIENT_GetUIState(9) : false;
+		bool chatBoxOpen = gameState ? !!D2CLIENT_GetUIState(UI_CHAT_CONSOLE) : false;
+		bool escMenuOpen = gameState ? !!D2CLIENT_GetUIState(UI_ESCMENU_MAIN) : false;
 
-		if(altState && wParam == VK_F4)
+		if (altState && wParam == VK_F4)
 			return CallNextHookEx(NULL, code, wParam, lParam);
 
 		if(Vars.bBlockKeys)
@@ -192,7 +193,7 @@ LRESULT CALLBACK KeyPress(int code, WPARAM wParam, LPARAM lParam)
 
 				return CallNextHookEx(NULL, code, wParam, lParam);
 			}
-		}
+		}			
 		else if(wParam == VK_ESCAPE && Console::IsVisible())
 		{
 			if(isDown && !isRepeat && code == HC_ACTION )
@@ -317,7 +318,7 @@ void GameDraw(void)
 		DrawLogo();
 		Console::Draw();
 	}
-	Sleep(1);
+	Sleep(10);
 }
 
 void GameDrawOOG(void)
@@ -359,31 +360,26 @@ void __fastcall GamePlayerAssignment(UnitAny* pPlayer)
 	PlayerAssignEvent(pPlayer->dwUnitId);
 }
 
-BOOL __stdcall GameLoop(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
+BOOL __stdcall GameLoop(LPMSG lpMsg, HWND hWnd, UINT wMsgFIlterMin, UINT wMsgFilterMax, UINT wRemoveMsg)
 {
 	if(Vars.bGameLoopEntered)
+	{
 		LeaveCriticalSection(&Vars.cGameLoopSection);
-	else
-		Vars.bGameLoopEntered = true;
+	}
+	else Vars.bGameLoopEntered = true;
 
 	EnterCriticalSection(&Vars.cGameLoopSection);
 
-	/* 
-	 * Temporary hack needed to avoid issues with WaitForClientState when
-	 * entering Tyreals portal after killing baal for quest, I'm looking
-	 * into a solution.
-	 */
-	//BOOL ret = PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
-	//Sleep(1);
-	return PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
+	return PeekMessage(lpMsg, hWnd, wMsgFIlterMin, wMsgFilterMax, wRemoveMsg);
 }
 
 void GameLeave(void)
 {
 	if(Vars.bGameLoopEntered)
+	{
 		LeaveCriticalSection(&Vars.cGameLoopSection);
-	else
-		Vars.bGameLoopEntered = true;
+	}
+	else Vars.bGameLoopEntered = true;
 
 	// Stop ingame scripts at this point ..
 	// otherwise we deadlock ...

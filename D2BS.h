@@ -3,7 +3,10 @@
 
 #pragma once
 
-#define D2BS_VERSION "1.2.920"
+#define XP_WIN
+#define JS_THREADSAFE
+
+#define D2BS_VERSION "1.2.1"
 
 #include <windows.h>
 

@@ -1,11 +1,12 @@
 #include "Room.h"
 #include "CriticalSections.h"
+#include "D2Ptrs.h"
 
 BOOL RevealRoom(Room2* pRoom2, BOOL revealPresets) {
 	bool bAdded = false;
 	bool bInit = false;
 
-	DWORD dwLevelNo = D2CLIENT_GetPlayerUnit()->pPath->pRoom1->pRoom2->pLevel->dwLevelNo;
+	DWORD dwLevelNo = p_D2CLIENT_MyPlayerUnit->pPath->pRoom1->pRoom2->pLevel->dwLevelNo;
 
 	CriticalRoom room;
 	room.EnterSection();
@@ -13,7 +14,7 @@ BOOL RevealRoom(Room2* pRoom2, BOOL revealPresets) {
 	if (!pRoom2)
 		return false;
 
-	UnitAny* player = D2CLIENT_GetPlayerUnit();
+	UnitAny* player = *p_D2CLIENT_PlayerUnit;
 	//Check if we have Room1(Needed in order to reveal)
 	if (!(pRoom2 && pRoom2->pRoom1)) {
 		D2COMMON_AddRoomData(pRoom2->pLevel->pMisc->pAct, pRoom2->pLevel->dwLevelNo, pRoom2->dwPosX, pRoom2->dwPosY, NULL);
@@ -87,7 +88,7 @@ void DrawPresets (Room2 *pRoom2)
 			if (mCell == -1)
 			{
 				//Get the object cell
-				ObjectTxt *obj = D2COMMON_GetObjectTxt(pUnit->dwTxtFileNo);
+				ObjectTxt *obj = D2COMMON_GetObjectText(pUnit->dwTxtFileNo);
 
 				if (mCell == -1)
 				{

@@ -10,6 +10,7 @@
 #include "D2Intercepts.h"
 #include "D2BS.h"
 #include "stringhash.h"
+#include "D2Ptrs.h"
 
 void Log(char* szFormat, ...)
 {
@@ -65,7 +66,7 @@ const char* GetUnitName(UnitAny* pUnit, char* szTmp, size_t bufSize)
 	}
 	if(pUnit->dwType == UNIT_ITEM)
 	{
-		wchar_t wBuffer[256] = {0};
+		wchar_t wBuffer[256] = L"";
 		D2CLIENT_GetItemName(pUnit, wBuffer, sizeof(wBuffer));
 		char* szBuffer = UnicodeToAnsi(wBuffer);
 		if(strchr(szBuffer, '\n'))
@@ -130,7 +131,7 @@ bool InArea(int x, int y, int x2, int y2, int sizex, int sizey) {
 }
 
 UnitAny* FindItemByPosition(DWORD x, DWORD y, DWORD Location) {
-	for(UnitAny* pItem = D2COMMON_GetItemFromInventory(D2CLIENT_GetPlayerUnit()->pInventory); pItem; pItem = D2COMMON_GetNextItemFromInventory(pItem)) {
+	for(UnitAny* pItem = D2COMMON_GetItemFromInventory(p_D2CLIENT_MyPlayerUnit->pInventory); pItem; pItem = D2COMMON_GetNextItemFromInventory(pItem)) {
 		if((DWORD)GetItemLocation(pItem) == Location && InArea(x,y,pItem->pObjectPath->dwPosX,pItem->pObjectPath->dwPosY,D2COMMON_GetItemText(pItem->dwTxtFileNo)->xSize,D2COMMON_GetItemText(pItem->dwTxtFileNo)->ySize))
 			return pItem;
 	}
@@ -144,86 +145,62 @@ void SelectInventoryItem(DWORD x, DWORD y, DWORD dwLocation)
 
 ClientGameState ClientState(void)
 {
-
-	// Temp debugging helper for spammage.
-#if 0
-	static DWORD tick = GetTickCount();
-	static int times;
-	if(GetTickCount() - tick <= 1000)
-	{
-		times++;
-		if(times > 200)
-		{
-			times = 0;
-			DebugBreak();
-		}
-	}
-#endif
-
 	if(*p_D2CLIENT_PlayerUnit && !(*p_D2WIN_FirstControl))
 	{
-		if((*p_D2CLIENT_PlayerUnit)->pInventory &&
-				(*p_D2CLIENT_PlayerUnit)->pPath &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->xPos &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1 &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2 &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel &&
-				(*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel->dwLevelNo)
+		if(p_D2CLIENT_MyPlayerUnit->pInventory &&
+				p_D2CLIENT_MyPlayerUnit->pPath &&
+				p_D2CLIENT_MyPlayerUnit->pPath->xPos &&
+				p_D2CLIENT_MyPlayerUnit->pPath->pRoom1 &&
+				p_D2CLIENT_MyPlayerUnit->pPath->pRoom1->pRoom2 &&
+				p_D2CLIENT_MyPlayerUnit->pPath->pRoom1->pRoom2->pLevel &&
+				p_D2CLIENT_MyPlayerUnit->pPath->pRoom1->pRoom2->pLevel->dwLevelNo)
 			return ClientStateInGame;
 		else
 			return ClientStateBusy;
 	}
-	else if(!(*p_D2CLIENT_PlayerUnit) && *p_D2WIN_FirstControl)
+	else if(!p_D2CLIENT_MyPlayerUnit && *p_D2WIN_FirstControl)
 		return ClientStateMenu;
-	else if(!(*p_D2CLIENT_PlayerUnit) && !(*p_D2WIN_FirstControl))
-	{
-		// Throttle since we need to wait anyways.
-		Sleep(10);
-		return ClientStateBusy;
-	}
-
+	else if(!p_D2CLIENT_MyPlayerUnit && !(*p_D2WIN_FirstControl))
+		return ClientStateNull;
 //#ifdef DEBUG
 //	else
 //		DebugBreak();
 //#endif
-
-	// This should only happen on injection
-	Sleep(50);
 	return ClientStateNull;
 }
 
-bool WaitForClientState(ClientGameState WantedState)
+bool GameReady(void)
+{
+	return (ClientState() == ClientStateInGame ? true : false);
+}
+
+bool WaitForGameReady(void)
 {
 	DWORD start = GetTickCount();
 	do
 	{
 		switch(ClientState())
 		{
-			case ClientStateInGame:
-				if(WantedState == ClientStateInGame)
-					return true;
-			case ClientStateMenu:
-				if(WantedState == ClientStateMenu)
-					return true;
+			case ClientStateNull: case ClientStateMenu: return false;
+			case ClientStateInGame: return true;
 		}
 		Sleep(10);
-	} while(Vars.dwGameTimeout == 0 || (Vars.dwGameTimeout > 0 && (GetTickCount() - start) < Vars.dwGameTimeout));
-
+	} while((Vars.dwGameTimeout == 0 ) || (Vars.dwGameTimeout > 0 && (GetTickCount() - start) < Vars.dwGameTimeout));
 	return false;
 }
 
 DWORD GetPlayerArea(void)
 {
-	return (ClientState() == ClientStateInGame ? (*p_D2CLIENT_PlayerUnit)->pPath->pRoom1->pRoom2->pLevel->dwLevelNo : NULL);
+	return (ClientState() == ClientStateInGame ? p_D2CLIENT_MyPlayerUnit->pPath->pRoom1->pRoom2->pLevel->dwLevelNo : NULL);
 }
 
 Level* GetLevel(DWORD dwLevelNo)
 {
-	for(Level* pLevel = D2CLIENT_GetPlayerUnit()->pAct->pMisc->pLevelFirst; pLevel; pLevel = pLevel->pNextLevel)
+	for(Level* pLevel = p_D2CLIENT_MyPlayerUnit->pAct->pMisc->pLevelFirst; pLevel; pLevel = pLevel->pNextLevel)
 		if(pLevel->dwLevelNo == dwLevelNo)
 			return pLevel;
 
-	return D2COMMON_GetLevel(D2CLIENT_GetPlayerUnit()->pAct->pMisc, dwLevelNo);
+	return D2COMMON_GetLevel(p_D2CLIENT_MyPlayerUnit->pAct->pMisc, dwLevelNo);
 }
 
 // TODO: make this use SIZE for clarity
@@ -248,14 +225,13 @@ POINT CalculateTextLen(const char* szwText, INT Font)
 
 INT GetSkill(WORD wSkillId)
 {
-	if(ClientState() != ClientStateInGame)
-		return -1;
+	if(!*p_D2CLIENT_PlayerUnit) return 0;
 
-	for(Skill* pSkill = (*p_D2CLIENT_PlayerUnit)->pInfo->pFirstSkill; pSkill; pSkill = pSkill->pNextSkill)
+	for(Skill* pSkill = p_D2CLIENT_MyPlayerUnit->pInfo->pFirstSkill; pSkill; pSkill = pSkill->pNextSkill)
 		if(pSkill->pSkillInfo->wSkillId == wSkillId)
-			return D2COMMON_GetSkillLevel(*p_D2CLIENT_PlayerUnit, pSkill, true);
+			return D2COMMON_GetSkillLevel(*p_D2CLIENT_PlayerUnit, pSkill, TRUE);
 
-	return -1;
+	return 0;
 }
 
 BOOL SetSkill(WORD wSkillId, BOOL bLeft)
@@ -280,14 +256,17 @@ BOOL SetSkill(WORD wSkillId, BOOL bLeft)
 
 	int timeout = 0;
 	Skill* hand = NULL;
-	while(ClientState() == ClientStateInGame && timeout <= 10)
+	while(ClientState() == ClientStateInGame)
 	{
 		hand = (bLeft ? Me->pInfo->pLeftSkill : Me->pInfo->pRightSkill);
 		if(hand->pSkillInfo->wSkillId != wSkillId)
+		{
+			if(timeout > 10)
+				return FALSE;
 			timeout++;
+		}
 		else
 			return TRUE;
-
 		Sleep(100);
 	}
 	
@@ -300,7 +279,6 @@ WORD GetSkillByName(char* skillname)
 	for(int i = 0; i < 216; i++)
 		if(_stricmp(Game_Skills[i].name, skillname) == 0)
 			return Game_Skills[i].skillID;
-
 	return (WORD)-1;
 }
 
@@ -309,20 +287,7 @@ char* GetSkillByID(WORD id)
 	for(int i = 0; i < 216; i++)
 		if(id == Game_Skills[i].skillID)
 			return Game_Skills[i].name;
-
 	return NULL;
-}
-
-void ScreenSizeCheck(POINT* pPoint)
-{
-	if(D2GFX_GetScreenSize() == 0)
-	{
-		pPoint->x -= 800;
-		pPoint->y -= 600;
-
-		pPoint->x += 640;
-		pPoint->y += 400;
-	}
 }
 
 void SendMouseClick(INT x, INT y, INT clicktype)
@@ -359,9 +324,6 @@ DWORD __declspec(naked) __fastcall D2CLIENT_InitAutomapLayer_STUB(DWORD nLayerNo
 
 AutomapLayer* InitAutomapLayer(DWORD levelno)
 {
-	if(ClientState() != ClientStateInGame) 
-		return NULL;
-
 	AutomapLayer2 *pLayer = D2COMMON_GetLayer(levelno);
 	return D2CLIENT_InitAutomapLayer(pLayer->nLayerNo);
 }
@@ -386,11 +348,6 @@ void ScreenToAutomap(POINT *ptPos, int x, int y)
 
 BOOL IsTownLevel(INT nLevel)
 {
-	// Needed because we can be under chicken setting and recieve life a
-	// life packet while joining game.
-	if(nLevel == 0)
-		return TRUE;
-
 	if(nLevel == MAP_A1_ROGUE_ENCAMPMENT ||
 		nLevel == MAP_A2_LUT_GHOLEIN || 
 		nLevel == MAP_A3_KURAST_DOCKS ||
@@ -426,20 +383,17 @@ void myDrawCenterText(const char* szText, int x, int y, int color, int font, int
 	delete[] Buffer;
 }
 
-void D2CLIENT_Interact(UnitAny* pUnit, DWORD dwMoveType)
-{
-	if(ClientState() != ClientStateInGame) 
-		return;
-
+void D2CLIENT_Interact(UnitAny* pUnit, DWORD dwMoveType) {
+	
 	if(!pUnit)
 		return;
 
-	if(!D2CLIENT_FindUnit(pUnit->dwUnitId, pUnit->dwType))
+	if(!D2CLIENT_FindUnit(pUnit->dwUnitId,pUnit->dwType))
 		return;
 
 	InteractStruct pInteract = {
 		dwMoveType,
-		D2CLIENT_GetPlayerUnit(),
+		*p_D2CLIENT_PlayerUnit,
 		pUnit,
 		GetUnitX(pUnit),
 		GetUnitY(pUnit),
@@ -453,9 +407,6 @@ typedef void (*fnClickEntry) (void);
 
 BOOL ClickNPCMenu(DWORD NPCClassId, DWORD MenuId)
 {
-	if(ClientState() != ClientStateInGame) 
-		return FALSE;
-
 	NPCMenu* pMenu = (NPCMenu*)p_D2CLIENT_NPCMenu;
 	fnClickEntry pClick = (fnClickEntry) NULL;
 
@@ -466,37 +417,33 @@ BOOL ClickNPCMenu(DWORD NPCClassId, DWORD MenuId)
 			if(pMenu->wEntryId1 == MenuId)
 			{
 				pClick = (fnClickEntry)pMenu->dwEntryFunc1;
-				if(pClick)
-					pClick();
-				else
-					return FALSE;
+					if(pClick)
+						pClick();
+					else return FALSE;
 				return TRUE;
 			}
 			else if(pMenu->wEntryId2 == MenuId)
 			{
 				pClick = (fnClickEntry)pMenu->dwEntryFunc2;
-				if(pClick)
-					pClick();
-				else
-					return FALSE;
+					if(pClick)
+						pClick();
+					else return FALSE;
 				return TRUE;
 			}
 			else if(pMenu->wEntryId3 == MenuId)
 			{
 				pClick = (fnClickEntry)pMenu->dwEntryFunc3;
-				if(pClick)
-					pClick();
-				else
-					return FALSE;
+					if(pClick)
+						pClick();
+					else return FALSE;
 				return TRUE;
 			}
 			else if(pMenu->wEntryId4 == MenuId)
 			{
 				pClick = (fnClickEntry)pMenu->dwEntryFunc4;
-				if(pClick)
-					pClick();
-				else
-					return FALSE;
+					if(pClick)
+						pClick();
+					else return FALSE;
 				return TRUE;
 			}
 		}
@@ -551,26 +498,18 @@ BYTE CalcPercent(DWORD dwVal, DWORD dwMaxVal, BYTE iMin)
 
 DWORD GetTileLevelNo(Room2* lpRoom2, DWORD dwTileNo)
 {
-	if(ClientState() != ClientStateInGame) 
-		return 0;
-
 	for(RoomTile* pRoomTile = lpRoom2->pRoomTiles; pRoomTile; pRoomTile = pRoomTile->pNext)
 	{
 		if(*(pRoomTile->nNum) == dwTileNo)
 			return pRoomTile->pRoom2->pLevel->dwLevelNo;
 	}
 
-	return 0;
+	return NULL;
 }
 
 UnitAny* D2CLIENT_FindUnit(DWORD dwId, DWORD dwType)
 {
-	if(ClientState() != ClientStateInGame) 
-		return NULL;
-
-	if(dwId == (DWORD)-1)
-		return NULL;
-
+	if(dwId == -1) return NULL;
 	UnitAny* pUnit = D2CLIENT_FindServerSideUnit(dwId, dwType);
 	return pUnit ? pUnit : D2CLIENT_FindClientSideUnit(dwId, dwType);
 }
@@ -583,6 +522,7 @@ CellFile* LoadCellFile(char* lpszPath, DWORD bMPQ)
 	if(bMPQ == 3)
 	{
 		// Check in our directory first
+
 		HANDLE hFile = OpenFileRead(lpszPath);
 
 		if(hFile != INVALID_HANDLE_VALUE)
@@ -591,7 +531,11 @@ CellFile* LoadCellFile(char* lpszPath, DWORD bMPQ)
 			return LoadCellFile(lpszPath, FALSE);
 		}
 		else
+		{
 			return LoadCellFile(lpszPath, TRUE);
+		}
+
+		//return NULL;
 	}
 
 	unsigned __int32 hash = sfh(lpszPath, (int)strlen(lpszPath));
@@ -639,15 +583,10 @@ int RemoveColorSpecs(wchar_t *lpwsz)
 	return (int)wcslen(lpwsz);
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
-// Original Sourcecode from Stings or Mousepad's
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-// TODO: make this use SIZE instead of POINT for clarity
 POINT GetScreenSize()
 {
-	POINT sizes[] = { {640, 480}, {800, 600}, {800, 600} };
-	return sizes[D2GFX_GetScreenSize()];
+	POINT p = {*p_D2CLIENT_ScreenSizeX, *p_D2CLIENT_ScreenSizeY};
+	return p;
 }
 
 INT D2GetScreenSizeX()
@@ -807,12 +746,30 @@ void __declspec(naked) __fastcall D2CLIENT_Interact_ASM(DWORD Struct)
 	}
 }
 
+/*
+DWORD __declspec(naked) __fastcall FindUnit_STUB(DWORD unitid, DWORD unittype)
+{
+	__asm
+	{
+		pop eax;
+		push edx;
+		push eax;
+
+		shl edx, 9;
+		mov eax, D2CLIENT_GetUnitFromId_I;
+		add edx, eax;
+		mov eax, ecx;
+		and eax, 0x7F;
+		jmp D2CLIENT_GetUnitFromId_II;
+	}
+}*/
+
 DWORD __declspec(naked) __fastcall D2CLIENT_clickParty_ASM(DWORD RosterUnit, DWORD Mode)
 {
 	__asm
 	{
 		mov eax, ecx
-		jmp D2CLIENT_clickParty_I
+		jmp D2CLIENT_ClickParty_I
 	}
 }
 
@@ -840,11 +797,11 @@ void __declspec(naked) __fastcall D2CLIENT_ShopAction_ASM(DWORD pItem, DWORD pNp
 	}
 }
 
-void __declspec(naked) __fastcall D2CLIENT_clickBelt(DWORD x, DWORD y, DWORD IventoryData)
+void __declspec(naked) __fastcall D2CLIENT_clickBelt(DWORD x, DWORD y, Inventory* pInventoryData)
 {
 	__asm {
 		mov eax, edx
-		jmp D2CLIENT_clickBelt_I
+		jmp D2CLIENT_ClickBelt_I
 	}
 }
 
@@ -861,7 +818,7 @@ void __declspec(naked) __fastcall D2CLIENT_clickItemRight_ASM(DWORD x, DWORD y, 
 		MOV EBX,EAX
 		POP EAX
 		PUSH EBX
-		jmp D2CLIENT_clickItemRight_I
+		jmp D2CLIENT_ClickItemRight_I
 	}
 }
 
@@ -873,7 +830,7 @@ void __declspec(naked) __fastcall D2CLIENT_clickBeltRight_ASM(DWORD pInventory, 
 		MOV EBX,EAX
 		POP EAX
 		PUSH EBX
-		JMP D2CLIENT_clickBeltRight_I
+		JMP D2CLIENT_ClickBeltRight_I
 	}
 }
 
@@ -925,8 +882,8 @@ void __declspec(naked) __fastcall D2CLIENT_PlaySound(DWORD dwSoundId)
 		PUSH NULL
 		PUSH NULL
 		PUSH NULL
-		CALL D2CLIENT_GetPlayerUnit
-		PUSH EAX
+		MOV EAX, p_D2CLIENT_PlayerUnit
+		MOV EAX, [EAX]
 		MOV ECX, EAX
 		MOV EDX, EBX
 		CALL D2CLIENT_PlaySound_I
@@ -1008,7 +965,7 @@ void __declspec(naked) __stdcall myClickMap_ASM(DWORD MouseFlag, DWORD x, DWORD 
 {
 	__asm
 	{
-		MOV EAX,DWORD PTR DS:[D2CLIENT_clickMap_1]
+		MOV EAX,DWORD PTR DS:[D2CLIENT_ClickMap_I]
 		MOV EAX, [EAX]
 		SUB ESP,0x20
 		PUSH EBP
@@ -1016,7 +973,7 @@ void __declspec(naked) __stdcall myClickMap_ASM(DWORD MouseFlag, DWORD x, DWORD 
 		CMP EAX,EBP
 		JNZ L012
 		PUSH EAX
-		MOV EAX, [D2CLIENT_clickMap_2]
+		MOV EAX, [D2CLIENT_ClickMap_II]
 		CMP DWORD PTR DS:[EAX],EBP
 		POP EAX
 		JE L016
@@ -1036,10 +993,10 @@ void __declspec(naked) __stdcall myClickMap_ASM(DWORD MouseFlag, DWORD x, DWORD 
 		LEA EDI,DWORD PTR SS:[ESP+0x3C]
 		LEA EBX,DWORD PTR SS:[ESP+0x38]
 		PUSH EAX
-		MOV EAX, [D2CLIENT_clickMap_2]
+		MOV EAX, [D2CLIENT_ClickMap_II]
 		MOV DWORD PTR DS:[EAX],1
 		POP EAX
-		CALL D2CLIENT_clickMap_3
+		CALL D2CLIENT_ClickMap_III
 		MOV EBX, [p_D2CLIENT_PlayerUnit]
 		MOV EBX,DWORD PTR DS:[EBX]
 		XOR EAX,EAX
@@ -1054,7 +1011,7 @@ void __declspec(naked) __stdcall myClickMap_ASM(DWORD MouseFlag, DWORD x, DWORD 
 		XOR EDI,EDI
 		MOV DWORD PTR SS:[ESP+0x14],EBX	
 		CALL myGetSelectedUnit
-		JMP D2CLIENT_clickMap_4
+		JMP D2CLIENT_ClickMap_IV
 	}
 /*
 6FB0CE80  /$ A1 7C2BBB6F    MOV EAX,DWORD PTR DS:[6FBB2B7C]
@@ -1124,7 +1081,7 @@ __declspec(naked) void __fastcall D2CLIENT_HostilePartyUnit(RosterUnit* pUnit, D
 	__asm
 	{
 		MOV EAX, EDX
-		JMP [D2CLIENT_clickParty_II]
+		JMP [D2CLIENT_ClickParty_II]
 	}
 }
 

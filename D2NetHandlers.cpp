@@ -18,7 +18,7 @@ Variables Vars;
 
 DWORD ReassignPlayerHandler(BYTE* pPacket, DWORD dwSize)
 {
-	if(*(LPDWORD)&pPacket[2] == D2CLIENT_GetPlayerUnit()->dwUnitId)
+	if(*(LPDWORD)&pPacket[2] == p_D2CLIENT_MyPlayerUnit->dwUnitId)
 		pPacket[10] = NULL;
 
 	return TRUE;
@@ -42,11 +42,6 @@ DWORD HPMPUpdateHandler(BYTE* pPacket, DWORD dwSize)
 		Mana ^= 0x4000;
 	}
 	Mana *= 2;
-
-	if(!IsTownLevel(GetPlayerArea()) &&
-			(Vars.nChickenHP && Vars.nChickenHP >= GetUnitHP(D2CLIENT_GetPlayerUnit())) ||
-			(Vars.nChickenMP && Vars.nChickenMP >= GetUnitMP(D2CLIENT_GetPlayerUnit())))
-		D2CLIENT_ExitGame();
 
 	static WORD SaveLife = 0;
 	if(SaveLife != Life)

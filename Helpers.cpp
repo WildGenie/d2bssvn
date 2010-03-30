@@ -5,6 +5,7 @@
 #include "string.h"
 #include "D2Handlers.h"
 #include "Control.h"
+#include "D2Ptrs.h"
 
 wchar_t* AnsiToUnicode(const char* str)
 {
@@ -67,10 +68,17 @@ bool ProfileExists(const char *profile)
 
 void InitSettings(void)
 {
-	char fname[_MAX_FNAME+MAX_PATH],	scriptPath[_MAX_FNAME+MAX_PATH],
-		 debug[6],			blockMinimize[6],		quitOnHostile[6],
-		 quitOnError[6],	maxGameTime[6],			gameTimeout[6],
-		 startAtMenu[6],	disableCache[6],		memUsage[6],
+	char fname[_MAX_FNAME+MAX_PATH],
+		 scriptPath[_MAX_FNAME+MAX_PATH],
+		 debug[6],
+		 blockMinimize[6],
+		 quitOnHostile[6],
+		 quitOnError[6],
+		 maxGameTime[6],
+		 gameTimeout[6],
+		 startAtMenu[6],
+		 disableCache[6],
+		 memUsage[6],
 		 gamePrint[6];
 
 	sprintf_s(fname, sizeof(fname), "%sd2bs.ini", Vars.szPath);
@@ -100,7 +108,7 @@ void InitSettings(void)
 	Vars.bUseGamePrint = StringToBool(gamePrint);
 	Vars.dwMemUsage = abs(atoi(memUsage));
 	if(Vars.dwMemUsage < 1)
-		Vars.dwMemUsage = 32;
+		Vars.dwMemUsage = 50;
 	Vars.dwMemUsage *= 1024*1024;
 	Vars.oldWNDPROC = NULL;
 }
@@ -110,9 +118,6 @@ bool InitHooks(void)
 	int i = 0;
 	while(!Vars.bActive)
 	{
-		Sleep(50);
-		i++;
-
 		if(i >= 300)
 		{
 			MessageBox(0, "Failed to set hooks, exiting!", "D2BS", 0);
@@ -147,6 +152,8 @@ bool InitHooks(void)
 			if(ClientState() == ClientStateMenu && Vars.bStartAtMenu)
 				clickControl(*p_D2WIN_FirstControl);
 		}
+		Sleep(50);
+		i++;
 	}
 	return true;
 }
@@ -156,7 +163,7 @@ const char* GetStarterScriptName(void)
 	return (ClientState() == ClientStateInGame ? "default.dbj" : ClientState() == ClientStateMenu ? "starter.dbj" : NULL);
 }
 
-ScriptType GetStarterScriptType(void)
+ScriptState GetStarterScriptState(void)
 {
 	// the default return is InGame because that's the least harmful of the options
 	return (ClientState() == ClientStateInGame ? InGame : ClientState() == ClientStateMenu ? OutOfGame : InGame);
@@ -168,11 +175,11 @@ bool ExecCommand(const char* command)
 	return (script && CreateThread(0, 0, ScriptThread, script, 0, 0) != INVALID_HANDLE_VALUE);
 }
 
-bool StartScript(const char* scriptname, ScriptType scriptType)
+bool StartScript(const char* scriptname, ScriptState state)
 {
 	char file[_MAX_FNAME+_MAX_PATH];
 	sprintf_s(file, _MAX_FNAME+_MAX_PATH, "%s\\%s", Vars.szScriptPath, scriptname);
-	Script* script = ScriptEngine::CompileFile(file, scriptType);
+	Script* script = ScriptEngine::CompileFile(file, state);
 	return (script && CreateThread(0, 0, ScriptThread, script, 0, 0) != INVALID_HANDLE_VALUE);
 }
 
@@ -190,7 +197,7 @@ void Reload(void)
 	Sleep(500);
 
 	const char* script = GetStarterScriptName();
-	if(StartScript(script, GetStarterScriptType()))
+	if(StartScript(script, GetStarterScriptState()))
 		Print("ÿc2D2BSÿc0 :: Started %s", script);
 	else
 		Print("ÿc2D2BSÿc0 :: Failed to start %s", script);
@@ -210,7 +217,7 @@ bool ProcessCommand(const char* command, bool unprocessedIsCommand)
 	if(_strcmpi(argv, "start") == 0)
 	{
 		const char* script = GetStarterScriptName();
-		if(StartScript(script, GetStarterScriptType()))
+		if(StartScript(script, GetStarterScriptState()))
 			Print("ÿc2D2BSÿc0 :: Started %s", script);
 		else
 			Print("ÿc2D2BSÿc0 :: Failed to start %s", script);
@@ -233,7 +240,7 @@ bool ProcessCommand(const char* command, bool unprocessedIsCommand)
 	else if(_strcmpi(argv, "load") == 0)
 	{
 		const char* script = command+5;
-		if(StartScript(script, GetStarterScriptType()))
+		if(StartScript(script, GetStarterScriptState()))
 			Print("ÿc2D2BSÿc0 :: Started %s", script);
 		else
 			Print("ÿc2D2BSÿc0 :: Failed to start %s", script);
@@ -260,7 +267,7 @@ bool ProcessCommand(const char* command, bool unprocessedIsCommand)
 void GameJoined(void)
 {
 	Print("ÿc2D2BSÿc0 :: Starting default.dbj");
-	if(StartScript(GetStarterScriptName(), GetStarterScriptType()))
+	if(StartScript(GetStarterScriptName(), GetStarterScriptState()))
 		Print("ÿc2D2BSÿc0 :: default.dbj running.");
 	else
 		Print("ÿc2D2BSÿc0 :: Failed to start default.dbj!");
@@ -271,7 +278,7 @@ void MenuEntered(bool beginStarter)
 	if(beginStarter)
 	{
 		Print("ÿc2D2BSÿc0 :: Starting starter.dbj");
-		if(StartScript(GetStarterScriptName(), GetStarterScriptType()))
+		if(StartScript(GetStarterScriptName(), GetStarterScriptState()))
 			Print("ÿc2D2BSÿc0 :: starter.dbj running.");
 		else
 			Print("ÿc2D2BSÿc0 :: Failed to start starter.dbj!");

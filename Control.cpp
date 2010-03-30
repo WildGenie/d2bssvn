@@ -163,7 +163,7 @@ bool clickControl(Control* pControl, int x, int y)
 	return false;
 }
 
-BOOL OOG_CreateCharacter(char* szCharacter, int type, bool hardcore, bool ladder, bool expansion)
+BOOL OOG_CreateCharacter(char* szCharacter, int type, bool hardcore, bool ladder)
 {
 	if(OOG_GetLocation() != OOG_CHAR_SELECT || strlen(szCharacter) > 15 || type > 6 || type < 0)
 		return FALSE;
@@ -172,8 +172,6 @@ BOOL OOG_CreateCharacter(char* szCharacter, int type, bool hardcore, bool ladder
 	Control* ctrl = findControl(CONTROL_BUTTON, (char*)NULL, -1, 33, 528, 168, 60);
 	if(ctrl)
 		clickControl(ctrl);
-	else
-		return FALSE;
 
 	// TODO: replace with real time checking code
 	int i = 0;
@@ -205,7 +203,7 @@ BOOL OOG_CreateCharacter(char* szCharacter, int type, bool hardcore, bool ladder
 		return FALSE; // something bad happened?
 
 	// set the name
-	//ctrl = findControl();
+//	ctrl = findControl();
 	// still need to find the name editbox, set the name, and click the various
 	// checkboxes and the ok button
 

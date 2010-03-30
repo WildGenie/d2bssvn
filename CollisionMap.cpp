@@ -107,7 +107,7 @@ WORD CCollisionMap::GetMapData(long x, long y, BOOL bAbs) const
 
 BOOL CCollisionMap::BuildMapData(DWORD AreaIds[], int nSize)
 {
-	UnitAny* pUnit = D2CLIENT_GetPlayerUnit ();
+	UnitAny* pUnit = *p_D2CLIENT_PlayerUnit;
 
 	if (m_map.IsCreated())
 		return TRUE;
@@ -257,7 +257,7 @@ BOOL CCollisionMap::DumpMap(LPCSTR lpszFilePath, const LPPOINT lpPath, DWORD dwC
 			AbsToRelative(pPath[i]);
 	}	
 
-	UnitAny* Me = D2CLIENT_GetPlayerUnit();
+	UnitAny* Me = *p_D2CLIENT_PlayerUnit;
 	POINT ptPlayer = {Me->pPath->xPos,Me->pPath->yPos};
 	AbsToRelative(ptPlayer);
 
@@ -504,7 +504,7 @@ INT CCollisionMap::GetLevelExits(LPLevelExit* lpLevel)
 	POINT ptExitPoints[0x40][2];
 	INT nTotalPoints = 0, nCurrentExit = 0;
 	INT nMaxExits = 0x40;
-	UnitAny* Me = D2CLIENT_GetPlayerUnit();
+	UnitAny* Me = *p_D2CLIENT_PlayerUnit;
 	CriticalRoom myRoom;
 	myRoom.EnterSection();
 

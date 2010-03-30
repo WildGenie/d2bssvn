@@ -70,10 +70,10 @@ JSAPI_FUNC(my_copyUnit)
 
 JSAPI_FUNC(my_clickMap)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
-	uint16 nClickType = 0, nShift = 0, nX = 0xFFFF, nY = 0xFFFF;
+	uint16 nClickType = NULL, nShift = NULL, nX = NULL, nY = NULL;
 
 	*rval = JSVAL_FALSE;
 	
@@ -120,7 +120,7 @@ JSAPI_FUNC(my_clickMap)
 
 JSAPI_FUNC(my_acceptTrade)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	// TODO: Fix this nonsense.
@@ -131,7 +131,7 @@ JSAPI_FUNC(my_acceptTrade)
 	}
 	else if(JSVAL_TO_INT(argv[0]) == 2) // Called with a '2' it will return the trade flag
 	{
-		*rval = INT_TO_JSVAL((*p_D2CLIENT_TradeFlag));
+		*rval = INT_TO_JSVAL((*p_D2CLIENT_RecentTradeId));
 		return JS_TRUE;
 	}
 	else if(JSVAL_TO_INT(argv[0]) == 3) // Called with a '3' it will return if the 'check' is red or not
@@ -140,7 +140,7 @@ JSAPI_FUNC(my_acceptTrade)
 		return JS_TRUE;
 	}
 
-	if((*p_D2CLIENT_TradeFlag) == 3 || (*p_D2CLIENT_TradeFlag) == 5 || (*p_D2CLIENT_TradeFlag) == 7)
+	if((*p_D2CLIENT_RecentTradeId) == 3 || (*p_D2CLIENT_RecentTradeId) == 5 || (*p_D2CLIENT_RecentTradeId) == 7)
 	{
 		if((*p_D2CLIENT_bTradeBlock))
 		{
@@ -167,7 +167,7 @@ JSAPI_FUNC(my_acceptTrade)
 
 JSAPI_FUNC(my_getPath)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 5)
@@ -307,7 +307,7 @@ JSAPI_FUNC(my_getPath)
 
 JSAPI_FUNC(my_getCollision)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 3 || !JSVAL_IS_INT(argv[0]) || !JSVAL_IS_INT(argv[1]) || !JSVAL_IS_INT(argv[2]))
@@ -340,7 +340,7 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 	CriticalMisc myMisc;
 	myMisc.EnterSection();
 
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(*p_D2CLIENT_TransactionDialog != 0 || *p_D2CLIENT_TransactionDialogs != 0 || *p_D2CLIENT_TransactionDialogs_2 != 0)
@@ -392,12 +392,12 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 		if(!pUnit)
 			return JS_TRUE;
 
-		clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_clickLocPtrs + (4 * pUnit->pItemData->BodyLocation));
+		clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_BodyClickTable + (4 * pUnit->pItemData->BodyLocation));
 		
 		if(!click)
 			return JS_TRUE;
 
-		click(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, pUnit->pItemData->BodyLocation);
+		click(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, pUnit->pItemData->BodyLocation);
 	
 		return JS_TRUE;
 	}
@@ -409,12 +409,12 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 
 		if(nClickType == NULL)
 		{
-			clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_clickLocPtrs + (4 * nBodyLoc));
+			clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_BodyClickTable + (4 * nBodyLoc));
 			
 			if(!click)
 				return JS_TRUE;
 
-			click(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, nBodyLoc);	
+			click(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, nBodyLoc);	
 		}
 		// Click Merc Gear
 		else if(nClickType == 4)
@@ -488,8 +488,9 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 			y = pLayout->Top + y * pLayout->SlotPixelHeight + 10;
 
 			if(nClickType == NULL)
-				D2CLIENT_LeftClickItem(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, x, y, nClickType, pLayout, pUnit->pItemData->ItemLocation);
-			else D2CLIENT_RightClickItem(x,y, pUnit->pItemData->ItemLocation, D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory);
+				D2CLIENT_LeftClickItem(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, x, y, nClickType, pLayout, pUnit->pItemData->ItemLocation);
+			else
+				D2CLIENT_RightClickItem(x,y, pUnit->pItemData->ItemLocation, p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory);
 
 		}
 		else if(InventoryLocation == STORAGE_BELT)
@@ -509,21 +510,21 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 				y = 460 - (Belt[i].y * 29);
 			}
 			if(nClickType == NULL)
-				D2CLIENT_clickBelt(x,y, (DWORD)D2CLIENT_GetPlayerUnit()->pInventory);
+				D2CLIENT_clickBelt(x, y, p_D2CLIENT_MyPlayerUnit->pInventory);
 			else
-				D2CLIENT_clickBeltRight(D2CLIENT_GetPlayerUnit()->pInventory,D2CLIENT_GetPlayerUnit(), nClickType == 1 ? FALSE : TRUE, i);
+				D2CLIENT_clickBeltRight(p_D2CLIENT_MyPlayerUnit->pInventory, p_D2CLIENT_MyPlayerUnit, nClickType == 1 ? FALSE : TRUE, i);
 		}
 		else if(D2CLIENT_GetCursorItem() == pUnit)
 		{
 			if(nClickType < 1 || nClickType > 12)
 				return JS_TRUE;
 
-			clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_clickLocPtrs + (4 * nClickType));
+			clickequip * click = (clickequip*)*(DWORD*)(D2CLIENT_BodyClickTable + (4 * nClickType));
 
 			if(!click)
 				return JS_TRUE;
 			
-			click(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, nClickType);			
+			click(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, nClickType);			
 		}
 	}
 	else if(argc == 4)
@@ -582,11 +583,11 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 				INT	y = pLayout->Top + nY * pLayout->SlotPixelHeight + 10;
 				
 				if(nButton == 0) // Left Click
-					D2CLIENT_LeftClickItem(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, x, y, 1, pLayout, nLoc);
+					D2CLIENT_LeftClickItem(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, x, y, 1, pLayout, nLoc);
 				else if(nButton == 1) // Right Click
-					D2CLIENT_RightClickItem(x,y,nLoc , D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory);
+					D2CLIENT_RightClickItem(x, y, nLoc, p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory);
 				else if(nButton == 2) // Shift Left Click
-					D2CLIENT_LeftClickItem(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory, x, y, 5, pLayout, nLoc);
+					D2CLIENT_LeftClickItem(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, x, y, 5, pLayout, nLoc);
 			
 				return JS_TRUE;
 			}
@@ -621,13 +622,11 @@ typedef void __fastcall clickequip(UnitAny * pPlayer, Inventory * pIventory, INT
 				}
 
 				if(nButton == 0)
-					D2CLIENT_clickBelt(x,y, (DWORD)D2CLIENT_GetPlayerUnit()->pInventory);	
+					D2CLIENT_clickBelt(x, y, p_D2CLIENT_MyPlayerUnit->pInventory);	
 				else if(nButton == 1)
-					D2CLIENT_clickBeltRight(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory,
-						FALSE, z);
+					D2CLIENT_clickBeltRight(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, FALSE, z);
 				else if(nButton == 2)
-					D2CLIENT_clickBeltRight(D2CLIENT_GetPlayerUnit(), D2CLIENT_GetPlayerUnit()->pInventory,
-						TRUE, z);
+					D2CLIENT_clickBeltRight(p_D2CLIENT_MyPlayerUnit, p_D2CLIENT_MyPlayerUnit->pInventory, TRUE, z);
 
 				return JS_TRUE;
 			}	
@@ -671,7 +670,7 @@ JSAPI_FUNC(my_rand)
 
 	long long seed = 0;
 	if(ClientState() == ClientStateInGame)
-		seed = D2GAME_D2Rand((*p_D2CLIENT_PlayerUnit)->dwSeed);
+		seed = D2GAME_Rand(p_D2CLIENT_MyPlayerUnit->dwSeed);
 	else
 		seed = rand();
 
@@ -697,7 +696,7 @@ JSAPI_FUNC(my_rand)
 
 JSAPI_FUNC(my_getDistance)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	// TODO: Add the type of distance to the api design
@@ -785,7 +784,7 @@ JSAPI_FUNC(my_getDistance)
 
 JSAPI_FUNC(my_gold)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	jsint nGold = NULL;
@@ -803,7 +802,7 @@ JSAPI_FUNC(my_gold)
 
 JSAPI_FUNC(my_checkCollision)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc == 3 && JSVAL_IS_OBJECT(argv[0]) && JSVAL_IS_OBJECT(argv[1]) && JSVAL_IS_INT(argv[2]))
@@ -830,19 +829,20 @@ JSAPI_FUNC(my_checkCollision)
 
 JSAPI_FUNC(my_getMercHP)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
-	if(D2CLIENT_GetPlayerUnit() && D2CLIENT_GetPlayerUnit()->pAct)
+	// TODO: Can we replace this with D2CLIENT_GetMercUnit()?
+	if(p_D2CLIENT_MyPlayerUnit && p_D2CLIENT_MyPlayerUnit->pAct)
 	{
-		for(Room1* pRoom = D2CLIENT_GetPlayerUnit()->pAct->pRoom1; pRoom; pRoom = pRoom->pRoomNext)
+		for(Room1* pRoom = p_D2CLIENT_MyPlayerUnit->pAct->pRoom1; pRoom; pRoom = pRoom->pRoomNext)
 		{
 			for(UnitAny* pUnit = pRoom->pUnitFirst; pUnit; pUnit = pUnit->pListNext)
 			{
 				if(pUnit->dwType == UNIT_MONSTER &&
 					(pUnit->dwTxtFileNo == MERC_A1 || pUnit->dwTxtFileNo == MERC_A2 ||
 					pUnit->dwTxtFileNo == MERC_A3 || pUnit->dwTxtFileNo == MERC_A5) &&
-					D2CLIENT_GetMonsterOwner(pUnit->dwUnitId) == D2CLIENT_GetPlayerUnit()->dwUnitId)									
+					D2CLIENT_GetMonsterOwner(pUnit->dwUnitId) == p_D2CLIENT_MyPlayerUnit->dwUnitId)									
 
 				{
 					*rval = (pUnit->dwMode == 12 ? JSVAL_ZERO : INT_TO_JSVAL(D2CLIENT_GetUnitHPPercent(pUnit->dwUnitId)));
@@ -950,7 +950,7 @@ JSAPI_FUNC(my_getTextWidthHeight)
 
 JSAPI_FUNC(my_getTradeInfo)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 1)
@@ -963,7 +963,7 @@ JSAPI_FUNC(my_getTradeInfo)
 	
 	if(nMode == 0)
 	{
-		*rval = INT_TO_JSVAL((*p_D2CLIENT_TradeFlag));
+		*rval = INT_TO_JSVAL((*p_D2CLIENT_RecentTradeId));
 		return JS_TRUE;
 	}
 	else if(nMode == 1)
@@ -986,7 +986,7 @@ JSAPI_FUNC(my_getTradeInfo)
 
 JSAPI_FUNC(my_getUIFlag)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 1 || !JSVAL_IS_INT(argv[0]))
@@ -1003,7 +1003,7 @@ JSAPI_FUNC(my_getUIFlag)
 
 JSAPI_FUNC(my_getWaypoint)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc < 1 || !JSVAL_IS_INT(argv[0]))
@@ -1084,7 +1084,7 @@ JSAPI_FUNC(my_say)
 
 JSAPI_FUNC(my_clickParty)
 {	
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	*rval = JSVAL_FALSE;
@@ -1188,7 +1188,7 @@ JSAPI_FUNC(my_weaponSwitch)
 {	
 	*rval = JSVAL_FALSE;
 
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	jsint nParameter = NULL;
@@ -1221,7 +1221,7 @@ JSAPI_FUNC(my_weaponSwitch)
 
 JSAPI_FUNC(my_transmute)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	D2CLIENT_Transmute();
@@ -1231,7 +1231,7 @@ JSAPI_FUNC(my_transmute)
 
 JSAPI_FUNC(my_getPlayerFlag)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(argc != 3 || !JSVAL_IS_NUMBER(argv[0]) || !JSVAL_IS_NUMBER(argv[1]) || !JSVAL_IS_NUMBER(argv[2]))
@@ -1296,12 +1296,12 @@ JSAPI_FUNC(my_getMouseCoords)
 
 JSAPI_FUNC(my_submitItem)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	if(UnitAny* pUnit = D2CLIENT_GetCursorItem())
 	{
-		D2CLIENT_submitItem(pUnit->dwUnitId);
+		D2CLIENT_SubmitItem(pUnit->dwUnitId);
 		*rval = JSVAL_TRUE;
 	}
 	else
@@ -1312,7 +1312,7 @@ JSAPI_FUNC(my_submitItem)
 
 JSAPI_FUNC(my_getInteractedNPC)
 {
-	if(!WaitForClientState())
+	if(!WaitForGameReady())
 		THROW_ERROR(cx, "Game not ready");
 
 	UnitAny* pNPC = D2CLIENT_GetCurrentInteractingNPC();
