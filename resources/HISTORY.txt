@@ -1,5 +1,99 @@
 Version History:
 
+Version 1.4 -
+
+	.	Fixes:
+		- say() fixed to properly detect the screen location and correctly encode % characters
+		- Multiple problems with screenhook clicking and hovering.
+		- Signed/unsigned problems with stat ids 13, 29 and 30
+		- Channel chat input parsing
+		- unit.getStat(-2) now properly bitshifts life, mana, and stamina
+		- clickMap no longer crashes with a null 'unit' argument
+		- FileTools functions now correctly use the locking API
+		- Unit.getFlags() now correctly works
+		- me.cancel no longer affects the automap
+		- The D2BSScript object is now initialized properly like all the others
+
+	.	Added partial support for TCP/IP games in login()
+
+	.	Had to revert the new map code--it wasn't working for all area exits, and existing scripts rely
+		on that behavior. :(
+
+	.	Changed the Warden behavior so that you can load D2BS without cGuard, and it will terminate on
+		Warden if not loaded with cGuard
+
+	.	Upgraded the SQLite library to version 3.7.5
+
+	.	Downgraded "Game not ready" exception from an error to a warning.
+
+	.	Added support for setting skills from item charges (me.setSkill(skill, hand [, item object]) where
+		item object is the result of getUnit(TYPE_ITEM))
+
+	.	Added the ability to change the default starting script names, as well as the ability to let the
+		profile specify both the script path and the default starting script names (see the new values in
+		d2bs.ini for more details)
+
+	.	Added the ability to specify the profile to use *before* calling login():
+		- The profile is activated by the first time you call login() OR
+		- The first WM_COPYDATA message with an ID of 0x31337 (the data is treated as a profile name) OR
+		- The first XTYP_POKE sent via DDE (the data is treated as a profile name) OR
+		- Setting the profile via the "profile" command on the console.
+		- After the first profile is set, you cannot change it. However, specifying a different profile
+		  via login() will allow you to login using a different profile (but me.profile will *not* be
+		  updated, it will remain as-is, and the script path will remain the same)
+
+	.	The console is now scrollable using page up/down. Only the last 300 lines are saved.
+
+	.	API changes:
+		- Added useStatPoint(statid, count) and useSkillPoint(skillid, count)--no significant error checking
+		  is done, so be careful or you may cause a crash (or worse, a ban)!
+		- Added loadMpq(string mpqname) (this allows you to switch cd keys on the fly)
+		- Added me.revive()--no error checking is done, so you may cause a ban if you're not dead
+		- Added takeScreenshot()--this is the same as pressing the print screen key in D2
+		- Added me.pid--this returns the process id for the current D2 that D2BS is loaded to
+		- Added me.nopickup--returns the current nopickup setting, and allows you to enable/disable nopickup
+		- Added me.mapid--returns the current map seed
+		- Added me.profile--returns the last profile used for login() OR the profile set as the default
+		- Renamed getTextWidthHeight to getTextSize
+
+	.	Added new debug code! D2 will now silently crash when it does crash (no more "Window not found"
+		errors!), and will output debug information to D2BS.log.
+
+	.	Known issues:
+		- Calling say() in game causes a crash. Dunno exactly why yet. Just don't do it.
+		- getBaseStat does not correctly detect the end of the the item table. Calling it with a rowid greater
+		  than the last rowid will cause a crash.
+
+Version 1.3.3 -
+
+	.	Fixed OOG_GetLocation for Lost Connection
+
+	.	Changed the internal unit finding code to use D2's unit hash tables. (Speeds up Unit finding by a
+		couple orders of magnitude.)
+
+Version 1.3.2 -
+
+	.	Changed the internal unit finding code to use an internal list instead of room searching.
+
+	.	Fixed sendDDE (multiple bugs, the least of which was an unused parameter...)
+
+	.	Fixed me.cancel once again to detect scrolling text ("summoner bug")
+
+	.	Fixed a rather large memory leak with Script::GetFilename (d'oh!)
+
+	.	Removed some of the strictness checks for getBaseStat (got sick of trying to debug it).
+
+	.	Fixed an issue where getScript could return a script that had no valid parameters, meaning
+		it would just error when you tried to use it.
+
+	.	Added "param2" parameter to the "gameevent" event. You may now detect what kind of party
+		message you just got (hostile vs. invite vs. accept, etc.)
+
+Version 1.3.1 -
+
+	.	Fixed me.cancel(1) (was using the wrong function pointer... whoops!)
+		(this also fixes the "gamble bug")
+
 Version 1.3 -
 
 	.	Updated to 1.13c
@@ -9,23 +103,6 @@ Version 1.3 -
 	.	"chatmsg" and "whispermsg" now listen to channel events as well as in-game events.
 
 	.	Lots of little stability fixes and whatnot.
-
-Version 1.2.1 -
-
-	.	Reverted to packet-based shopping, the internal method we were using seems to still be buggy.
-
-	.	Fixed various places where scripts/functions could inadvertantly fail due to internal mishandling
-		of game state.
-
-	.	Fixed addProfile--it wasn't correctly adding profiles anyway.
-
-	.	Made all profile settings be in SECONDS. This means you MUST EDIT YOUR D2BS.INI APPROPRIATELY.
-
-	.	Added a new property, me.gameReady. Previously, functions that required the game to be ready
-		would simply return undefined if the game wasn't ready, now they will wait on the game to be
-		ready. If you wish to do your own processing instead, then you should test me.gameReady to see
-		if the core would block while waiting for the game. You don't need to do anything to benefit
-		from this change, as the default behavior is now just a little more correct.
 
 Version 1.2 -
 
